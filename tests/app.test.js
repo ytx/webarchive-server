@@ -88,3 +88,13 @@ test("broken sidecar can be repaired with PATCH and DELETE removes files", async
   assert.deepEqual(await readdir(dir), []);
   assert.equal(store.get(id), null);
 });
+
+test("serves the list and item pages", async () => {
+  const { app } = await setup();
+  const home = await app.request("/");
+  assert.equal(home.status, 200);
+  assert.match(await home.text(), /id="list"/);
+  const item = await app.request("/items/01J7ZK4M3N5P6Q7R8S9T0V1W2X");
+  assert.equal(item.status, 200);
+  assert.match(await item.text(), /id="memo"/);
+});

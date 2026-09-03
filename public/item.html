@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebArchive</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">WebArchive</div>
+  <a href="/">← 一覧へ戻る</a>
+  <div class="status" id="saveStatus"><span class="dot"></span><span>保存済み</span></div>
+</header>
+<div class="layout">
+  <aside class="detail">
+    <div id="notice"></div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <h1 id="title"></h1>
+      <a class="url" id="url" target="_blank" rel="noopener"></a>
+      <div class="meta"><span id="savedAt"></span><span id="savedOn"></span></div>
+    </div>
+    <div class="field">
+      <label for="memo">メモ</label>
+      <textarea id="memo"></textarea>
+      <div class="hint">フォーカスが外れると保存 · Cmd+S</div>
+    </div>
+    <div class="field">
+      <label for="tagInput">タグ</label>
+      <div class="tagbox" id="tagbox">
+        <input id="tagInput" placeholder="タグを追加…" autocomplete="off">
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn" id="openOriginal" target="_blank" rel="noopener">元ページを開く</a>
+      <a class="btn" id="download" download>HTML をダウンロード</a>
+      <button class="btn danger" id="delete">削除</button>
+    </div>
+  </aside>
+  <section class="preview">
+    <div class="bar"><span>保存したページ</span><span class="mono">sandbox</span><a id="openPage" target="_blank" rel="noopener">新しいタブで開く</a></div>
+    <iframe id="frame" sandbox=""></iframe>
+  </section>
+</div>
+<script src="/item.js" type="module"></script>
+</body>
+</html>

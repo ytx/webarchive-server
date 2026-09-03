@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebArchive</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">WebArchive</div>
+  <form class="search" id="searchForm">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6b6b66" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg>
+    <input id="q" type="search" placeholder="タイトル・URL・メモ・タグを検索" autocomplete="off">
+  </form>
+  <div class="status mono" id="summary"></div>
+</header>
+<div class="layout">
+  <aside class="side">
+    <h3>状態</h3>
+    <nav id="statusNav"></nav>
+    <h3>タグ</h3>
+    <nav id="tagNav"></nav>
+  </aside>
+  <main class="list">
+    <div class="toolbar">
+      <div>並び: 保存日 新しい順</div>
+      <div class="pager mono"><a href="#" id="prev">←</a><span id="range"></span><a href="#" id="next">→</a></div>
+    </div>
+    <div class="rows" id="list"></div>
+  </main>
+</div>
+<script src="/list.js" type="module"></script>
+</body>
+</html>
