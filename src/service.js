@@ -11,6 +11,10 @@ const NODE_FLAGS = ["--disable-warning=ExperimentalWarning"];
 // the service definition when they are set at install time.
 const CONFIG_ENV = ["WEBARCHIVE_CONFIG", "ARCHIVE_DIR", "DATA_DIR", "PORT", "MACHINE_NAME", "OPEN_AFTER_SAVE"];
 
+function realSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function realExec(command, args) {
   return new Promise((resolve) => {
     execFile(command, args, { windowsHide: true }, (error, stdout, stderr) => {
@@ -63,19 +67,38 @@ function unsupported(platform) {
   return new Error(`service registration is not supported on ${platform} (macOS and Windows only)`);
 }
 
-export async function installService({ platform = process.platform, home = homedir(), uid = process.getuid?.(), node = process.execPath, server, env = process.env, exec = realExec }) {
+const BOOTOUT_WAIT_MS = 250;
+const BOOTOUT_WAIT_TRIES = 40;
+const BOOTSTRAP_RETRY_MS = 1000;
+const BOOTSTRAP_TRIES = 5;
+
+export async function installService({ platform = process.platform, home = homedir(), uid = process.getuid?.(), node = process.execPath, server, env = process.env, exec = realExec, sleep = realSleep }) {
   if (platform === "darwin") {
     const { plist, logDir } = darwinPaths(home);
+    const target = `gui/${uid}/${LABEL}`;
     await mkdir(join(home, "Library", "LaunchAgents"), { recursive: true });
     await mkdir(logDir, { recursive: true });
     await writeFile(plist, launchdPlist({ node, server, logDir, env }));
-    // Replace a previous registration, if any; bootout failing is fine.
-    await exec("launchctl", ["bootout", `gui/${uid}/${LABEL}`]);
-    const result = await exec("launchctl", ["bootstrap", `gui/${uid}`, plist]);
-    if (result.code !== 0) {
-      throw new Error(`launchctl bootstrap failed (${result.code}): ${result.stderr.trim() || result.stdout.trim()}`);
+    // Replace a previous registration, if any. bootout returns before the old
+    // process has actually gone away, and bootstrapping the same label while
+    // it is still being torn down fails with EIO (5), so wait for launchd to
+    // forget the service first, and retry the bootstrap a few times anyway.
+    await exec("launchctl", ["bootout", target]);
+    for (let i = 0; i < BOOTOUT_WAIT_TRIES && (await exec("launchctl", ["print", target])).code === 0; i++) {
+      await sleep(BOOTOUT_WAIT_MS);
     }
-    return { path: plist, logDir };
+    let result;
+    for (let attempt = 1; attempt <= BOOTSTRAP_TRIES; attempt++) {
+      result = await exec("launchctl", ["bootstrap", `gui/${uid}`, plist]);
+      if (result.code === 0) {
+        return { path: plist, logDir };
+      }
+      if (result.code !== 5 || attempt === BOOTSTRAP_TRIES) {
+        break;
+      }
+      await sleep(BOOTSTRAP_RETRY_MS);
+    }
+    throw new Error(`launchctl bootstrap failed (${result.code}): ${result.stderr.trim() || result.stdout.trim()}`);
   }
   if (platform === "win32") {
     const create = await exec("schtasks", schtasksCommand({ node, server }));
