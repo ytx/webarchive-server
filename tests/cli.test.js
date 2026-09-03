@@ -67,3 +67,18 @@ test("unknown commands and bare service print usage and exit 1; help exits 0", a
   assert.match(out(), /service install/);
   assert.deepEqual(calls, []);
 });
+
+test("the bin entry still runs when invoked through a symlink, as npm installs it", async () => {
+  const { mkdtemp, symlink } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join, resolve } = await import("node:path");
+  const { execFile } = await import("node:child_process");
+  const dir = await mkdtemp(join(tmpdir(), "wa-bin-"));
+  const link = join(dir, "webarchive");
+  await symlink(resolve("src/cli.js"), link);
+  const { stdout, code } = await new Promise((done) => {
+    execFile(process.execPath, [link, "help"], (error, stdout) => done({ stdout, code: error?.code ?? 0 }));
+  });
+  assert.equal(code, 0);
+  assert.match(stdout, /Usage:/);
+});

@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
+import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { installService, uninstallService, serviceStatus } from "./service.js";
@@ -55,7 +56,20 @@ export async function runCli(argv, {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// npm installs the bin as a symlink, so argv[1] is the link while
+// import.meta.url is the resolved file: compare real paths.
+function invokedDirectly() {
+  if (!process.argv[1]) {
+    return false;
+  }
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
   const code = await runCli(process.argv.slice(2));
   if (code !== 0 || process.argv.length > 2) {
     process.exit(code);
