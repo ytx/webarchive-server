@@ -1,7 +1,7 @@
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { ulid } from "ulid";
-import { parseHtmlMeta, sidecarDefaults, writeSidecarAtomic, toIsoWithOffset } from "./sidecar.js";
+import { parseHtmlMeta, sidecarDefaults, writeSidecarAtomic, writeFileAtomic, toIsoWithOffset } from "./sidecar.js";
 import { readItem } from "./item.js";
 
 export async function ingest({ archiveDir, machineName, store }, { html, url, filename, now = new Date() }) {
@@ -16,7 +16,7 @@ export async function ingest({ archiveDir, machineName, store }, { html, url, fi
   const title = meta.title ?? (filename ? filename.replace(/\.[^.]+$/, "") : null);
   const sidecar = sidecarDefaults({ id, url: url || meta.url, title, savedAt: toIsoWithOffset(now), savedOn: machineName });
   try {
-    await writeFile(htmlPath, html);
+    await writeFileAtomic(htmlPath, html);
     await writeSidecarAtomic(jsonPath, sidecar);
   } catch (error) {
     await unlink(htmlPath).catch(() => {});

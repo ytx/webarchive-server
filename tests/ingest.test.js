@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ingest } from "../src/ingest.js";
@@ -31,4 +31,19 @@ test("ingest falls back to the filename for the title and the header url", async
   const item = await ingest({ archiveDir, machineName: "mac", store }, { html: "<html><!--\n Page saved with SingleFile \n url: https://header.example/ \n--></html>", url: "", filename: "My Page (2026-09-03).html" });
   assert.equal(item.title, "My Page (2026-09-03)");
   assert.equal(item.url, "https://header.example/");
+});
+
+test("ingest rethrows and leaves no partial files when the target directory can't be created", async () => {
+  const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
+  const store = new Store(":memory:");
+  const now = new Date(2026, 8, 3, 10, 12, 0);
+  await mkdir(join(archiveDir, "items", "2026"), { recursive: true });
+  // Put a plain file where the month directory needs to be created, so
+  // mkdir(dir, { recursive: true }) fails with ENOTDIR and the write never
+  // happens at all -- exercising the same "leave nothing behind" guarantee
+  // as a failure partway through the writes.
+  await writeFile(join(archiveDir, "items", "2026", "09"), "not a directory");
+  await assert.rejects(() => ingest({ archiveDir, machineName: "mac", store }, { html: Buffer.from(HTML), url: "https://form.example/p", filename: "page.html", now }));
+  assert.deepEqual(await readdir(join(archiveDir, "items", "2026")), ["09"]);
+  assert.equal(store.list().total, 0);
 });
