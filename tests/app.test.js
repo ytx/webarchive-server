@@ -185,12 +185,17 @@ test("POST /api/singlefile does not open the URL when openAfterSave is false", a
   assert.equal(openInBrowser.calls.length, 0);
 });
 
-test("POST /api/singlefile still returns 201 when openInBrowser resolves false", async () => {
+test("POST /api/singlefile still returns 201 when openInBrowser resolves false", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
   const failingOpen = () => Promise.resolve(false);
   failingOpen.calls = [];
   const { app } = await setup({ openAfterSave: true, openInBrowser: failingOpen });
   const res = await upload(app);
   assert.equal(res.status, 201);
+  const body = await res.json();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(errorMock.mock.calls.length, 1);
+  assert.match(errorMock.mock.calls[0].arguments[0], new RegExp(body.openUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 test("an unreadable conflict copy shows memo null, and resolving it 400s without deleting anything", async () => {

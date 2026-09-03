@@ -64,11 +64,13 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser }) 
     const item = await ingest(ctx, { html, url, filename: file.name });
     const openUrl = `http://127.0.0.1:${config.port}/items/${item.id}?new=1`;
     if (config.openAfterSave) {
-      openInBrowser(openUrl).then((ok) => {
-        if (!ok) {
-          console.error(`failed to open ${openUrl} in browser`);
-        }
-      });
+      openInBrowser(openUrl)
+        .then((ok) => {
+          if (!ok) {
+            console.error(`failed to open ${openUrl} in browser`);
+          }
+        })
+        .catch(() => {});
     }
     return c.json({ id: item.id, openUrl }, 201);
   });
