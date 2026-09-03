@@ -1,9 +1,9 @@
 import { watch } from "chokidar";
 import { basename, dirname, join, relative } from "node:path";
 import { classifyFile } from "./sidecar.js";
-import { readItem } from "./item.js";
+import { readItem as realReadItem } from "./item.js";
 
-export function startWatcher({ archiveDir, machineName, store, debounceMs = 300, onError = (e) => console.error(e) }) {
+export function startWatcher({ archiveDir, machineName, store, debounceMs = 300, onError = (e) => console.error(e), readItem = realReadItem }) {
   const root = join(archiveDir, "items");
   const timers = new Map();
   // Per-item work is serialized: `inFlight` holds the one running readItem+store

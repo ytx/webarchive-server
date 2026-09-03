@@ -72,7 +72,7 @@ test("watcher converges on the last written sidecar content under rapid successi
   }
 });
 
-test("close resolves before a write for a file dropped just prior is ever made", async () => {
+test("close leaves the store untouched when nothing had settled enough to be scheduled yet", async () => {
   const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
   const dir = join(archiveDir, "items", "2026", "09");
   await mkdir(dir, { recursive: true });
@@ -84,6 +84,11 @@ test("close resolves before a write for a file dropped just prior is ever made",
     await sleep(200);
     const sidecar = JSON.stringify({ id, url: "u", title: "T", savedAt: "2026-09-03T00:00:00+09:00", savedOn: "other", memo: "m", tags: [], updatedAt: "" });
     await writeFile(join(dir, `${id}.json`), sidecar);
+    // close() is called immediately, before chokidar's awaitWriteFinish window
+    // (~debounceMs) has even elapsed, so nothing has been scheduled yet: this
+    // proves shutdown is prompt and doesn't leave a stray timer that later
+    // writes to the store, not that in-flight work gets dropped (see the
+    // deterministic in-flight test below for that).
     await watcher.close();
     await sleep(debounceMs * 4);
     assert.equal(store.get(id), null);
@@ -94,7 +99,7 @@ test("close resolves before a write for a file dropped just prior is ever made",
   }
 });
 
-test("close awaits in-flight work so no store access happens after it resolves", async () => {
+test("close awaits a genuinely in-flight read, applies its result, then resolves; nothing touches the store afterward", async () => {
   const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
   const dir = join(archiveDir, "items", "2026", "09");
   await mkdir(dir, { recursive: true });
@@ -114,22 +119,54 @@ test("close awaits in-flight work so no store access happens after it resolves",
       };
     }
   });
-  const errors = [];
+
   const id = "01J7ZK4M3N5P6Q7R8S9T0V1W5A";
-  const debounceMs = 30;
-  const watcher = startWatcher({ archiveDir, machineName: "m", store: guarded, debounceMs, onError: (e) => errors.push(e) });
+  const relDir = "items/2026/09";
+  const resolvedItem = {
+    id, relDir, hasHtml: true, conflictFiles: [], url: "u", title: "T",
+    memo: "in-flight-result", tags: [], savedAt: "2026-09-03T00:00:00+09:00", savedOn: "other", updatedAt: "", status: "ok"
+  };
+  let readItemCalls = 0;
+  let releaseRead;
+  const readGate = new Promise((resolve) => { releaseRead = resolve; });
+  // Deterministic stand-in for the real readItem: it only resolves once the
+  // test releases it, so we can prove a read is genuinely in flight (not
+  // just assume it, as the earlier vacuous tests did) when close() is called.
+  const injectedReadItem = async () => {
+    readItemCalls++;
+    await readGate;
+    return resolvedItem;
+  };
+
+  const debounceMs = 20;
+  const watcher = startWatcher({ archiveDir, machineName: "m", store: guarded, debounceMs, readItem: injectedReadItem });
   try {
     await sleep(200);
-    const sidecar = (memo) => JSON.stringify({ id, url: "u", title: "T", savedAt: "2026-09-03T00:00:00+09:00", savedOn: "other", memo, tags: [], updatedAt: "" });
-    // Fire off a burst of writes and close immediately: some work may still
-    // be in flight, but none of it may reach the store after close() returns.
-    for (let i = 0; i < 10; i++) {
-      await writeFile(join(dir, `${id}.json`), sidecar(`m${i}`));
-    }
-    await watcher.close();
+    await writeFile(join(dir, `${id}.json`), "{}");
+    await waitFor(() => readItemCalls > 0);
+    // A second event for the same key while the read is still gated: this
+    // must be coalesced into a dropped "dirty" re-run once close() is
+    // called, not a second readItem call.
+    await writeFile(join(dir, `${id}.json`), "{}");
+    await sleep(debounceMs * 3);
+
+    let closeResolved = false;
+    const closePromise = watcher.close().then(() => {
+      closeResolved = true;
+    });
+    await sleep(debounceMs * 3);
+    assert.equal(closeResolved, false, "close() must not resolve while a read is still in flight");
+    assert.equal(real.get(id), null, "the store must not be written until the in-flight read completes");
+
+    releaseRead();
+    await closePromise;
     resolvedClose = true;
-    await sleep(debounceMs * 8);
-    assert.deepEqual(errors, []);
+
+    assert.equal(closeResolved, true, "close() must resolve once the in-flight read finishes");
+    assert.equal(real.get(id)?.memo, "in-flight-result", "the in-flight read's result must be applied before close() resolves");
+
+    await sleep(debounceMs * 4);
+    assert.equal(readItemCalls, 1, "a dirty re-run queued while closing must be dropped, not executed as a second read");
   } finally {
     real.close();
   }
