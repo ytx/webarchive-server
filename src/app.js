@@ -106,7 +106,7 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
   function settingsView() {
     const values = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config[key]]));
     const sources = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config.sources[key]]));
-    return { configured: config.configured, configPath: config.configPath, values, sources };
+    return { configured: config.configured, configPath: config.configPath, values, sources, lastError: config.lastError ?? null };
   }
 
   app.get("/api/settings", (c) => c.json(settingsView()));
@@ -120,7 +120,12 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
     if (error) {
       return c.json({ error }, 400);
     }
-    const { restartRequired } = await runtime.apply(values);
+    let restartRequired;
+    try {
+      ({ restartRequired } = await runtime.apply(values));
+    } catch (error) {
+      return c.json({ error: error.message }, 500);
+    }
     return c.json({ ...settingsView(), restartRequired });
   });
 

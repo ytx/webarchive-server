@@ -32,6 +32,9 @@ function render(settings) {
   for (const stale of document.querySelectorAll(".hint.env")) {
     stale.remove();
   }
+  if (settings.lastError) {
+    setNotice(`前回の保存先フォルダを開けなかったため、未設定の状態で起動しています: ${settings.lastError}`, "broken");
+  }
   for (const key of FIELDS) {
     const el = input(key);
     const value = settings.values[key];
@@ -85,7 +88,7 @@ form.addEventListener("submit", async (event) => {
   setNotice("");
   try {
     const res = await fetch("/api/settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(collect()) });
-    const body = await res.json();
+    const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     if (!res.ok) {
       saveStatus.textContent = "";
       setNotice(`保存できませんでした: ${body.error}`, "broken");

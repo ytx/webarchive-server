@@ -7,17 +7,21 @@ import { startWatcher } from "./watcher.js";
 // Owns the mutable runtime state derived from the config: the archive index
 // and the filesystem watcher. `config` is mutated in place so that consumers
 // holding a reference (the HTTP app) always see the current values.
-export function createRuntime({ config, store, saveConfig = realSaveConfig, watcherOptions = {} }) {
+export function createRuntime({ config, store, saveConfig = realSaveConfig, watcherOptions = {}, onError = (error) => console.error(error) }) {
   let watcher = null;
 
-  async function bringUp() {
-    if (watcher) {
-      await watcher.close();
-      watcher = null;
+  // Bring the index and watcher up for the given archive. The directory is
+  // created (and thereby checked for access) before the current watcher is
+  // touched, so an unusable target fails without disturbing the running one.
+  async function bringUp({ archiveDir, machineName }) {
+    await mkdir(join(archiveDir, "items"), { recursive: true });
+    const previous = watcher;
+    watcher = null;
+    if (previous) {
+      await previous.close();
     }
-    await mkdir(join(config.archiveDir, "items"), { recursive: true });
-    const count = await rebuildIndex({ archiveDir: config.archiveDir, machineName: config.machineName, store });
-    watcher = startWatcher({ archiveDir: config.archiveDir, machineName: config.machineName, store, ...watcherOptions });
+    const count = await rebuildIndex({ archiveDir, machineName, store });
+    watcher = startWatcher({ archiveDir, machineName, store, ...watcherOptions });
     return count;
   }
 
@@ -27,7 +31,18 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
       if (!config.configured) {
         return 0;
       }
-      return bringUp();
+      try {
+        const count = await bringUp(config);
+        config.lastError = null;
+        return count;
+      } catch (error) {
+        // Stay up in the unconfigured state so the settings page can show the
+        // problem and accept a fix, instead of crash-looping under launchd.
+        config.configured = false;
+        config.lastError = error.message;
+        onError(error);
+        return 0;
+      }
     },
     async apply(patch) {
       const values = {};
@@ -42,12 +57,23 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
       if (values.port !== undefined) {
         values.port = parsePort(values.port);
       }
+      const next = { archiveDir: values.archiveDir ?? config.archiveDir, machineName: values.machineName ?? config.machineName };
+      const archiveChanged =
+        Boolean(next.archiveDir) &&
+        (!config.configured || next.archiveDir !== config.archiveDir || next.machineName !== config.machineName);
+      if (archiveChanged) {
+        try {
+          await bringUp(next);
+        } catch (error) {
+          if (config.configured && !watcher) {
+            await bringUp(config).catch(onError);
+          }
+          throw error;
+        }
+      }
       await saveConfig(config.configPath, values);
 
       const restartRequired = values.port !== undefined && values.port !== config.port;
-      const archiveChanged =
-        (values.archiveDir !== undefined && values.archiveDir !== config.archiveDir) ||
-        (values.machineName !== undefined && values.machineName !== config.machineName);
       for (const key of ["archiveDir", "machineName", "openAfterSave"]) {
         if (values[key] !== undefined) {
           config[key] = values[key];
@@ -58,9 +84,7 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
         config.sources.port = "file";
       }
       config.configured = Boolean(config.archiveDir);
-      if (config.configured && archiveChanged) {
-        await bringUp();
-      }
+      config.lastError = null;
       return { restartRequired };
     },
     async close() {

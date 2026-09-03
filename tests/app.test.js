@@ -338,3 +338,23 @@ test("static files and UI pages are served with Cache-Control: no-cache so brows
     assert.equal(res.headers.get("cache-control"), "no-cache", path);
   }
 });
+
+test("PUT /api/settings answers with a JSON error when applying the settings fails", async () => {
+  const { app } = await setup();
+  const failing = { apply: async () => { throw new Error("EACCES: permission denied, mkdir '/x/items'"); } };
+  const config = { archiveDir: "/old", configured: true, dataDir: "/d", port: 8765, machineName: "mac", openAfterSave: false, configPath: "/c.json", sources: { archiveDir: "file", dataDir: "default", port: "default", machineName: "file", openAfterSave: "default" } };
+  const store = new Store(":memory:");
+  const broken = withDefaultHost(createApp({ config, store, runtime: failing }), "127.0.0.1:8765");
+  const res = await putSettings(broken, { archiveDir: "/x" });
+  assert.equal(res.status, 500);
+  assert.equal(res.headers.get("content-type").split(";")[0], "application/json");
+  assert.match((await res.json()).error, /EACCES/);
+  void app;
+});
+
+test("GET /api/settings exposes the last startup/apply error", async () => {
+  const { app, config } = await setup();
+  config.lastError = "EACCES: permission denied";
+  const body = await (await app.request("/api/settings")).json();
+  assert.equal(body.lastError, "EACCES: permission denied");
+});

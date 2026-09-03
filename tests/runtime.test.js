@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -148,6 +148,47 @@ test("apply ignores keys that are overridden by environment variables", async ()
     assert.equal(runtime.config.machineName, "envbox");
     assert.equal(JSON.parse(await readFile(configFile, "utf8")).machineName, undefined);
   } finally {
+    await runtime.close();
+  }
+});
+
+test("apply with an unusable archiveDir rejects and leaves config, file and watcher untouched", async () => {
+  const oldDir = await archiveWith(A);
+  const locked = await mkdtemp(join(tmpdir(), "wa-locked-"));
+  await chmod(locked, 0o000);
+  const { runtime, store, configFile } = await setup({ file: { archiveDir: oldDir } });
+  await runtime.start();
+  try {
+    await assert.rejects(runtime.apply({ archiveDir: join(locked, "arc") }), /EACCES/);
+    assert.equal(runtime.config.archiveDir, oldDir);
+    assert.equal(runtime.config.configured, true);
+    assert.equal(JSON.parse(await readFile(configFile, "utf8")).archiveDir, oldDir);
+    assert.ok(store.get(A));
+    await sleep(200);
+    await writeFile(join(oldDir, "items", "2026", "09", `${B}.html`), "<html></html>");
+    await waitFor(() => store.get(B), 4000);
+  } finally {
+    await chmod(locked, 0o755);
+    await runtime.close();
+  }
+});
+
+test("start with an unusable archiveDir records the error and falls back to unconfigured", async () => {
+  const locked = await mkdtemp(join(tmpdir(), "wa-locked-"));
+  await chmod(locked, 0o000);
+  const { runtime, store } = await setup({ file: { archiveDir: join(locked, "arc") } });
+  try {
+    await runtime.start();
+    assert.equal(runtime.config.configured, false);
+    assert.match(runtime.config.lastError, /EACCES/);
+    assert.equal(store.list({}).total, 0);
+    const good = await archiveWith(A);
+    await runtime.apply({ archiveDir: good });
+    assert.equal(runtime.config.configured, true);
+    assert.equal(runtime.config.lastError, null);
+    assert.ok(store.get(A));
+  } finally {
+    await chmod(locked, 0o755);
     await runtime.close();
   }
 });
