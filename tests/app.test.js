@@ -328,3 +328,13 @@ test("configured server serves /settings and / normally", async () => {
   assert.equal((await app.request("/settings")).status, 200);
   assert.equal((await app.request("/")).status, 200);
 });
+
+test("static files and UI pages are served with Cache-Control: no-cache so browsers revalidate", async () => {
+  const { app } = await setup();
+  const { id } = await (await upload(app)).json();
+  for (const path of ["/app.css", "/list.js", "/", "/settings", `/items/${id}`]) {
+    const res = await app.request(path);
+    assert.equal(res.status, 200, path);
+    assert.equal(res.headers.get("cache-control"), "no-cache", path);
+  }
+});

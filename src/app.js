@@ -87,6 +87,16 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
     return next();
   });
 
+  // The UI is edited in place on disk; make browsers revalidate every time so
+  // updated css/js show up on a plain reload instead of after a heuristic
+  // cache expiry. Conditional requests against a loopback server are cheap.
+  app.use("*", async (c, next) => {
+    await next();
+    if (!c.req.path.startsWith("/api/") && c.res.status === 200) {
+      c.res.headers.set("Cache-Control", "no-cache");
+    }
+  });
+
   app.use("/api/*", cors({
     origin: (origin) => (origin && /^(chrome|moz)-extension:\/\//.test(origin) ? origin : ""),
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],

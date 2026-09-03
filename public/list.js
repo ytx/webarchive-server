@@ -49,6 +49,15 @@ function domain(url) {
   }
 }
 
+function openInNewTabLink(href) {
+  const link = el("a", { class: "open", href, title: "新しいタブで開く" });
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener");
+  link.setAttribute("aria-label", "新しいタブで開く");
+  link.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M11 9v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7"/></svg>';
+  return link;
+}
+
 function filterLink(label, count, active, patch, extraClass = "") {
   const link = el("a", { class: `filter ${active ? "active" : ""} ${extraClass}`.trim(), href: "#" }, [el("span", {}, [label]), el("span", {}, [String(count)])]);
   link.addEventListener("click", (event) => {
@@ -109,11 +118,18 @@ function renderList({ items, total, page, limit }) {
     const chips = el("div", { class: "chips" }, item.tags.length
       ? item.tags.map((tag) => el("span", { class: "chip" }, [tag]))
       : [el("span", { class: "chip none" }, ["タグなし"])]);
-    return el("a", { class: `row ${item.status === "conflict" ? "conflict" : ""}`, href: `/items/${item.id}` }, [
+    const main = el("a", { class: "main", href: `/items/${item.id}` }, [
       el("div", { style: "min-width:0; display:flex; flex-direction:column; gap:3px;" }, [title, el("div", { class: "sub" }, [subText])]),
       chips,
       el("div", { class: "date" }, [(item.savedAt ?? "").slice(0, 10)])
     ]);
+    const row = el("div", { class: `row ${item.status === "conflict" ? "conflict" : ""}`.trim() }, [main]);
+    if (item.hasHtml) {
+      row.append(openInNewTabLink(`/items/${item.id}/page`));
+    } else {
+      row.append(el("span", { class: "open placeholder" }));
+    }
+    return row;
   }));
 }
 
