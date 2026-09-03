@@ -1,19 +1,36 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync } from "node:fs";
 import { readFile, readdir, unlink } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ingest } from "./ingest.js";
 import { readItem } from "./item.js";
-import { ULID_RE, classifyFile, normalizeTags, readSidecar, writeSidecarAtomic, sidecarDefaults, toIsoWithOffset } from "./sidecar.js";
+import { ULID_RE, classifyFile, normalizeTags, readSidecar, writeSidecarAtomic, sidecarDefaults, sidecarFromHtml, toIsoWithOffset } from "./sidecar.js";
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
+const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 
 export function createApp({ config, store }) {
   const app = new Hono();
   const ctx = { archiveDir: config.archiveDir, machineName: config.machineName, store };
+
+  // DNS-rebinding guard: this server binds only to 127.0.0.1 but Node's http
+  // server does not itself validate the Host header, so a page on the public
+  // internet could still resolve a hostname to 127.0.0.1 and make same-origin
+  // requests here. Reject anything whose Host doesn't name this loopback
+  // server (including a request with no Host header at all).
+  const allowedHosts = new Set([`127.0.0.1:${config.port}`, `localhost:${config.port}`, `[::1]:${config.port}`]);
+  if (config.port === 80) {
+    allowedHosts.add("127.0.0.1").add("localhost").add("[::1]");
+  }
+  app.use("*", async (c, next) => {
+    const host = c.req.header("host");
+    if (!host || !allowedHosts.has(host)) {
+      return c.json({ error: "forbidden host" }, 403);
+    }
+    return next();
+  });
 
   app.use("/api/*", cors({
     origin: (origin) => (origin && /^(chrome|moz)-extension:\/\//.test(origin) ? origin : ""),
@@ -22,6 +39,20 @@ export function createApp({ config, store }) {
   }));
 
   app.post("/api/singlefile", async (c) => {
+    // POST with multipart/form-data is a CORS-simple request, so the browser
+    // sends it (and lets the response through to script) even without a
+    // preflight or a matching Access-Control-Allow-Origin. Enforce the same
+    // chrome/moz-extension origin restriction here explicitly; a request with
+    // no Origin header at all (curl, the extension's background page) is
+    // still allowed.
+    const origin = c.req.header("origin");
+    if (origin && !/^(chrome|moz)-extension:\/\//.test(origin)) {
+      return c.json({ error: "forbidden origin" }, 403);
+    }
+    const contentLength = Number(c.req.header("content-length") ?? 0);
+    if (contentLength > MAX_UPLOAD_BYTES) {
+      return c.json({ error: "payload too large" }, 413);
+    }
     const body = await c.req.parseBody();
     const file = body.file;
     if (!(file instanceof File)) {
@@ -68,7 +99,11 @@ export function createApp({ config, store }) {
     try {
       sidecar = await readSidecar(jsonPath);
     } catch {
-      sidecar = sidecarDefaults({ id: item.id, savedOn: config.machineName });
+      // The sidecar is missing or unparsable (status "broken"): recover the
+      // url/title/savedAt from the saved html's own header rather than
+      // discarding them as nulls, so a PATCH that only touches memo/tags
+      // (e.g. from the repair form) doesn't wipe out recoverable metadata.
+      sidecar = await sidecarFromHtml(config.archiveDir, item.relDir, item.id, config.machineName);
     }
     if (typeof patch.memo === "string") {
       sidecar.memo = patch.memo;
@@ -85,7 +120,11 @@ export function createApp({ config, store }) {
     sidecar.id = item.id;
     sidecar.updatedAt = toIsoWithOffset();
     await writeSidecarAtomic(jsonPath, sidecar);
-    return c.json(await refresh(item));
+    const fresh = await refresh(item);
+    if (!fresh) {
+      return c.json({ error: "not found" }, 404);
+    }
+    return c.json(fresh);
   });
 
   app.post("/api/items/:id/resolve", async (c) => {
@@ -100,7 +139,12 @@ export function createApp({ config, store }) {
       if (!item.conflictFiles.includes(file)) {
         return c.json({ error: "unknown conflict file" }, 400);
       }
-      const chosen = await readSidecar(join(dir, file));
+      let chosen;
+      try {
+        chosen = await readSidecar(join(dir, file));
+      } catch {
+        return c.json({ error: "conflict copy is unreadable" }, 400);
+      }
       let sidecar;
       try {
         sidecar = await readSidecar(join(dir, `${item.id}.json`));
@@ -117,7 +161,11 @@ export function createApp({ config, store }) {
     for (const file of item.conflictFiles) {
       await unlink(join(dir, file)).catch(() => {});
     }
-    return c.json(await refresh(item));
+    const fresh = await refresh(item);
+    if (!fresh) {
+      return c.json({ error: "not found" }, 404);
+    }
+    return c.json(fresh);
   });
 
   app.delete("/api/items/:id", async (c) => {
@@ -146,11 +194,7 @@ export function createApp({ config, store }) {
 
   app.get("/items/:id", async (c) => c.html(await readFile(join(PUBLIC_DIR, "item.html"), "utf8")));
   app.get("/", async (c) => c.html(await readFile(join(PUBLIC_DIR, "index.html"), "utf8")));
-  // public/ is created by Task 8; serveStatic logs to stderr at mount time if its
-  // root is missing, so only mount it once the directory actually exists.
-  if (existsSync(PUBLIC_DIR)) {
-    app.use("/*", serveStatic({ root: "./public" }));
-  }
+  app.use("/*", serveStatic({ root: PUBLIC_DIR }));
 
   async function locate(id) {
     if (!ULID_RE.test(id)) {

@@ -13,6 +13,7 @@ test("classifyFile recognizes html, json, conflict copies and temp files", () =>
   assert.deepEqual(classifyFile(`${ID} (競合コピー 2026-09-03).json`), { kind: "conflict", id: ID });
   assert.deepEqual(classifyFile(`${ID} (macbook's conflicted copy 2026-09-03).json`), { kind: "conflict", id: ID });
   assert.deepEqual(classifyFile(`.${ID}.json.tmp`), { kind: "tmp", id: ID });
+  assert.deepEqual(classifyFile(`.${ID}.html.tmp-a1b2`), { kind: "tmp", id: ID });
   assert.deepEqual(classifyFile("notes.txt"), { kind: "other", id: null });
   assert.ok(ULID_RE.test(ID));
   assert.ok(!ULID_RE.test("abc"));

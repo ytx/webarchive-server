@@ -1,12 +1,12 @@
 import { readFile, writeFile, rename, unlink } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
 
 export const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const ULID_PREFIX_RE = /^[0-9A-HJKMNP-TV-Z]{26}/;
 
 export function classifyFile(name) {
-  const tmp = /^\.([0-9A-HJKMNP-TV-Z]{26})\.json\.tmp/.exec(name);
+  const tmp = /^\.([0-9A-HJKMNP-TV-Z]{26})\.(?:html|json)\.tmp/.exec(name);
   if (tmp) {
     return { kind: "tmp", id: tmp[1] };
   }
@@ -94,14 +94,32 @@ export async function readSidecar(path) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-export async function writeSidecarAtomic(path, data) {
-  const id = data.id;
-  const tmp = join(dirname(path), `.${id}.json.tmp-${randomBytes(4).toString("hex")}`);
+// Write via a temp file in the same directory, then rename, so Dropbox never
+// syncs a partially written file. Used for both the sidecar json and (by
+// ingest.js) the saved html.
+export async function writeFileAtomic(path, data) {
+  const tmp = join(dirname(path), `.${basename(path)}.tmp-${randomBytes(4).toString("hex")}`);
   try {
-    await writeFile(tmp, JSON.stringify(data, null, 2) + "\n", "utf8");
+    await writeFile(tmp, data);
     await rename(tmp, path);
   } catch (error) {
     await unlink(tmp).catch(() => {});
     throw error;
+  }
+}
+
+export async function writeSidecarAtomic(path, data) {
+  await writeFileAtomic(path, JSON.stringify(data, null, 2) + "\n");
+}
+
+// Reconstruct sidecar defaults from the saved html's own header/title when
+// the real sidecar json is missing or unreadable (broken), so recoverable
+// metadata (url/title/savedAt) isn't discarded in favor of nulls.
+export async function sidecarFromHtml(archiveDir, relDir, id, machineName) {
+  try {
+    const meta = parseHtmlMeta(await readFile(join(archiveDir, relDir, `${id}.html`), "utf8"));
+    return sidecarDefaults({ id, url: meta.url, title: meta.title, savedAt: meta.savedAt, savedOn: machineName });
+  } catch {
+    return sidecarDefaults({ id, savedOn: machineName });
   }
 }

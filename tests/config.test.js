@@ -26,3 +26,10 @@ test("config file values are overridden by env", async () => {
   assert.equal(config.port, 9100);
   assert.equal(config.machineName, "filebox");
 });
+
+test("loadConfig rejects an out-of-range or non-integer PORT", () => {
+  assert.throws(() => loadConfig({ env: { ARCHIVE_DIR: "/tmp/a", PORT: "0" } }), /PORT must be an integer between 1 and 65535/);
+  assert.throws(() => loadConfig({ env: { ARCHIVE_DIR: "/tmp/a", PORT: "70000" } }), /PORT must be an integer between 1 and 65535/);
+  assert.throws(() => loadConfig({ env: { ARCHIVE_DIR: "/tmp/a", PORT: "8765.5" } }), /PORT must be an integer between 1 and 65535/);
+  assert.throws(() => loadConfig({ env: { ARCHIVE_DIR: "/tmp/a", PORT: "abc" } }), /PORT must be an integer between 1 and 65535/);
+});

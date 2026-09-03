@@ -8,10 +8,14 @@ export function loadConfig({ env = process.env, configFile = env.WEBARCHIVE_CONF
   if (!archiveDir) {
     throw new Error("ARCHIVE_DIR is required (env ARCHIVE_DIR or config.json archiveDir)");
   }
+  const port = Number(env.PORT ?? fromFile.port ?? 8765);
+  if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
+    throw new Error("PORT must be an integer between 1 and 65535");
+  }
   return {
     archiveDir: resolve(archiveDir),
     dataDir: resolve(env.DATA_DIR ?? fromFile.dataDir ?? join(homedir(), ".local", "share", "webarchive")),
-    port: Number(env.PORT ?? fromFile.port ?? 8765),
+    port,
     machineName: env.MACHINE_NAME ?? fromFile.machineName ?? hostname()
   };
 }
