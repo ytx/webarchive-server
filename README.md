@@ -1,6 +1,6 @@
 # webarchive-server
 
-SingleFile でキャプチャしたページを Dropbox などの共有フォルダに保存し、メモ・タグを付けて検索するローカルサーバ。
+[SingleFile](https://www.getsinglefile.com/) でキャプチャしたページを Dropbox などの共有フォルダに保存し、メモ・タグを付けて検索するローカルサーバ。
 
 保存先はローカルのフォルダとして見えるものなら何でもよい。Dropbox のほか、iCloud Drive、OneDrive、Google Drive for desktop、Syncthing、Nextcloud などのデスクトップクライアントで同期するフォルダで動く。
 サーバは各サービスの API を使わず、フォルダへのファイル書き込みと変更監視だけで動作する。競合コピー(`<ULID>` で始まり `.json` で終わる別名ファイル)は、どのサービスが作ったものでも一覧に「競合」として表示する。
@@ -115,8 +115,6 @@ ARCHIVE_DIR=~/Dropbox/WebArchive MACHINE_NAME=macbook webarchive
 | URL のフィールド名 | `url` |
 | 認証トークン | 任意(検証しない) |
 
-SingleFile 側の変更は不要。保存後に開くタブはサーバ自身がデフォルトブラウザで開く。
-
 ## 保存後に自動でタブを開く
 
 保存が成功すると、サーバはレスポンスに含まれる `openUrl` を既定のブラウザで自動的に開く(`OPEN_AFTER_SAVE`、既定で有効)。
@@ -135,8 +133,3 @@ OPEN_AFTER_SAVE=false webarchive
 
 SingleFile の自動保存(autosave)やバッチ保存でタブが大量に開いてしまう場合は無効にすること。
 
-## テスト
-
-```bash
-npm test
-```
