@@ -17,6 +17,7 @@ const watcher = startWatcher({ archiveDir: config.archiveDir, machineName: confi
 const app = createApp({ config, store });
 serve({ fetch: app.fetch, hostname: "127.0.0.1", port: config.port }, () => {
   console.log(`webarchive listening on http://127.0.0.1:${config.port}/ (${config.machineName})`);
+  console.log(`open after save: ${config.openAfterSave ? "on" : "off"}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {

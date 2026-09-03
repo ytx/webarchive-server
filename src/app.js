@@ -7,11 +7,12 @@ import { fileURLToPath } from "node:url";
 import { ingest } from "./ingest.js";
 import { readItem } from "./item.js";
 import { ULID_RE, classifyFile, normalizeTags, readSidecar, writeSidecarAtomic, sidecarDefaults, sidecarFromHtml, toIsoWithOffset } from "./sidecar.js";
+import { openInBrowser as realOpenInBrowser } from "./open-in-browser.js";
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 
-export function createApp({ config, store }) {
+export function createApp({ config, store, openInBrowser = realOpenInBrowser }) {
   const app = new Hono();
   const ctx = { archiveDir: config.archiveDir, machineName: config.machineName, store };
 
@@ -61,7 +62,15 @@ export function createApp({ config, store }) {
     const html = Buffer.from(await file.arrayBuffer());
     const url = typeof body.url === "string" ? body.url : "";
     const item = await ingest(ctx, { html, url, filename: file.name });
-    return c.json({ id: item.id, openUrl: `http://127.0.0.1:${config.port}/items/${item.id}?new=1` }, 201);
+    const openUrl = `http://127.0.0.1:${config.port}/items/${item.id}?new=1`;
+    if (config.openAfterSave) {
+      openInBrowser(openUrl).then((ok) => {
+        if (!ok) {
+          console.error(`failed to open ${openUrl} in browser`);
+        }
+      });
+    }
+    return c.json({ id: item.id, openUrl }, 201);
   });
 
   app.get("/api/items", (c) => {

@@ -25,12 +25,22 @@ function withDefaultHost(app, host) {
   return app;
 }
 
-async function setup() {
+function fakeOpenInBrowser() {
+  const calls = [];
+  const fn = (url) => {
+    calls.push(url);
+    return Promise.resolve(true);
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+async function setup({ openAfterSave = false, openInBrowser = fakeOpenInBrowser() } = {}) {
   const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
   const store = new Store(":memory:");
-  const config = { archiveDir, dataDir: archiveDir, port: 8765, machineName: "mac" };
-  const app = withDefaultHost(createApp({ config, store }), "127.0.0.1:8765");
-  return { app, store, archiveDir };
+  const config = { archiveDir, dataDir: archiveDir, port: 8765, machineName: "mac", openAfterSave };
+  const app = withDefaultHost(createApp({ config, store, openInBrowser }), "127.0.0.1:8765");
+  return { app, store, archiveDir, openInBrowser };
 }
 
 async function upload(app, url = "https://form.example/") {
@@ -159,6 +169,28 @@ test("PATCH on a broken sidecar recovers url/title from the html header instead 
   assert.equal(patched.url, "https://h.example/");
   assert.equal(patched.title, "Title");
   assert.equal(patched.memo, "x");
+});
+
+test("POST /api/singlefile opens the openUrl when openAfterSave is true", async () => {
+  const { app, openInBrowser } = await setup({ openAfterSave: true });
+  const res = await upload(app);
+  const body = await res.json();
+  assert.equal(openInBrowser.calls.length, 1);
+  assert.equal(openInBrowser.calls[0], body.openUrl);
+});
+
+test("POST /api/singlefile does not open the URL when openAfterSave is false", async () => {
+  const { app, openInBrowser } = await setup({ openAfterSave: false });
+  await upload(app);
+  assert.equal(openInBrowser.calls.length, 0);
+});
+
+test("POST /api/singlefile still returns 201 when openInBrowser resolves false", async () => {
+  const failingOpen = () => Promise.resolve(false);
+  failingOpen.calls = [];
+  const { app } = await setup({ openAfterSave: true, openInBrowser: failingOpen });
+  const res = await upload(app);
+  assert.equal(res.status, 201);
 });
 
 test("an unreadable conflict copy shows memo null, and resolving it 400s without deleting anything", async () => {
