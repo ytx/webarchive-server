@@ -13,6 +13,17 @@ webarchive
 
 リポジトリから直接動かす場合は `npm install` のあと `npm start`。
 
+### 更新
+
+同じコマンドをもう一度実行すると、GitHub の `main` の最新コミットを取得して上書きインストールする(`npm update -g` は git 参照のパッケージには効かない)。
+特定のコミットやタグに固定したい場合は `github:ytx/webarchive-server#<コミットまたはタグ>` と書く。
+
+```bash
+npm install -g github:ytx/webarchive-server
+```
+
+サービスとして登録している場合、定義に書かれた `src/server.js` のパスは再インストール後も同じなので書き直しは不要。ただし起動中のプロセスは古いコードのまま動き続けるので、`webarchive service install` をもう一度実行して再起動すること。
+
 初回起動時は保存先フォルダが未設定なので、サーバは `http://127.0.0.1:8765/settings` を既定のブラウザで開く。
 設定画面で保存先フォルダ(Dropbox 共有フォルダ)、マシン名、ポート、保存後にブラウザを開くかどうかを指定して保存すると、そのまま使い始められる。
 
