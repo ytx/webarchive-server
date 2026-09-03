@@ -1,8 +1,10 @@
 {
   "name": "webarchive-server",
   "version": "0.1.0",
-  "private": true,
+  "description": "Local server that stores SingleFile captures in a shared folder and lets you tag, annotate and search them",
   "type": "module",
+  "bin": { "webarchive": "src/server.js" },
+  "files": ["src", "public"],
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node src/server.js",

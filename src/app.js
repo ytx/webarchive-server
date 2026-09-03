@@ -2,8 +2,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { readFile, readdir, unlink } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { parsePort } from "./config.js";
 import { ingest } from "./ingest.js";
 import { readItem } from "./item.js";
 import { ULID_RE, classifyFile, normalizeTags, readSidecar, writeSidecarAtomic, sidecarDefaults, sidecarFromHtml, toIsoWithOffset } from "./sidecar.js";
@@ -11,10 +13,62 @@ import { openInBrowser as realOpenInBrowser } from "./open-in-browser.js";
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
+const SETTINGS_KEYS = ["archiveDir", "port", "machineName", "openAfterSave"];
 
-export function createApp({ config, store, openInBrowser = realOpenInBrowser }) {
+// Validate a settings PUT body. Returns { values } or { error }.
+export function parseSettings(body, { home = homedir() } = {}) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "body must be a JSON object" };
+  }
+  const values = {};
+  if (body.archiveDir !== undefined) {
+    if (typeof body.archiveDir !== "string" || body.archiveDir.trim() === "") {
+      return { error: "archiveDir must be a non-empty path" };
+    }
+    let dir = body.archiveDir.trim();
+    if (dir === "~" || dir.startsWith("~/")) {
+      dir = join(home, dir.slice(1));
+    }
+    if (!isAbsolute(dir)) {
+      return { error: "archiveDir must be an absolute path" };
+    }
+    values.archiveDir = dir;
+  }
+  if (body.port !== undefined) {
+    try {
+      values.port = parsePort(body.port);
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+  if (body.machineName !== undefined) {
+    if (typeof body.machineName !== "string" || body.machineName.trim() === "") {
+      return { error: "machineName must be a non-empty string" };
+    }
+    values.machineName = body.machineName.trim();
+  }
+  if (body.openAfterSave !== undefined) {
+    if (typeof body.openAfterSave !== "boolean") {
+      return { error: "openAfterSave must be a boolean" };
+    }
+    values.openAfterSave = body.openAfterSave;
+  }
+  return { values };
+}
+
+export function createApp({ config, store, openInBrowser = realOpenInBrowser, runtime, home = homedir() }) {
   const app = new Hono();
-  const ctx = { archiveDir: config.archiveDir, machineName: config.machineName, store };
+  // `config` is mutated in place by the runtime when settings change, so read
+  // archiveDir/machineName through getters rather than copying them once.
+  const ctx = {
+    get archiveDir() {
+      return config.archiveDir;
+    },
+    get machineName() {
+      return config.machineName;
+    },
+    store
+  };
 
   // DNS-rebinding guard: this server binds only to 127.0.0.1 but Node's http
   // server does not itself validate the Host header, so a page on the public
@@ -38,6 +92,41 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser }) 
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Authorization", "Content-Type"]
   }));
+
+  function settingsView() {
+    const values = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config[key]]));
+    const sources = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config.sources[key]]));
+    return { configured: config.configured, configPath: config.configPath, values, sources };
+  }
+
+  app.get("/api/settings", (c) => c.json(settingsView()));
+
+  app.put("/api/settings", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (body === null) {
+      return c.json({ error: "body must be JSON" }, 400);
+    }
+    const { values, error } = parseSettings(body, { home });
+    if (error) {
+      return c.json({ error }, 400);
+    }
+    const { restartRequired } = await runtime.apply(values);
+    return c.json({ ...settingsView(), restartRequired });
+  });
+
+  app.get("/settings", async (c) => c.html(await readFile(join(PUBLIC_DIR, "settings.html"), "utf8")));
+
+  // Everything below needs an archive directory. Until one is configured,
+  // send the UI to the settings page and refuse the archive APIs.
+  app.use("/api/*", async (c, next) => {
+    if (!config.configured) {
+      return c.json({ error: "not configured" }, 503);
+    }
+    return next();
+  });
+  const redirectUnlessConfigured = async (c, next) => (config.configured ? next() : c.redirect("/settings"));
+  app.use("/", redirectUnlessConfigured);
+  app.use("/items/*", redirectUnlessConfigured);
 
   app.post("/api/singlefile", async (c) => {
     // POST with multipart/form-data is a CORS-simple request, so the browser

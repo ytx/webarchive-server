@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "../src/config.js";
+import { readFile } from "node:fs/promises";
+import { loadConfig, saveConfig, defaultConfigPath } from "../src/config.js";
 
 test("loadConfig reads env with defaults", () => {
   const config = loadConfig({ env: { ARCHIVE_DIR: "/tmp/a" } });
@@ -13,8 +14,59 @@ test("loadConfig reads env with defaults", () => {
   assert.ok(config.machineName.length > 0);
 });
 
-test("loadConfig throws without ARCHIVE_DIR", () => {
-  assert.throws(() => loadConfig({ env: {} }), /ARCHIVE_DIR is required/);
+test("loadConfig without ARCHIVE_DIR yields an unconfigured state instead of throwing", () => {
+  const config = loadConfig({ env: {}, configFile: "/nonexistent/config.json" });
+  assert.equal(config.archiveDir, null);
+  assert.equal(config.configured, false);
+  assert.equal(config.port, 8765);
+});
+
+test("defaultConfigPath prefers XDG_CONFIG_HOME, then ~/.config", () => {
+  assert.equal(defaultConfigPath({ env: { XDG_CONFIG_HOME: "/xdg" }, home: "/home/me" }), join("/xdg", "webarchive", "config.json"));
+  assert.equal(defaultConfigPath({ env: {}, home: "/home/me" }), join("/home/me", ".config", "webarchive", "config.json"));
+});
+
+test("loadConfig reads the default config path and reports it", async () => {
+  const home = await mkdtemp(join(tmpdir(), "wa-home-"));
+  const file = join(home, ".config", "webarchive", "config.json");
+  await mkdir(join(home, ".config", "webarchive"), { recursive: true });
+  await writeFile(file, JSON.stringify({ archiveDir: "/from/default" }));
+  const config = loadConfig({ env: {}, home });
+  assert.equal(config.archiveDir, "/from/default");
+  assert.equal(config.configPath, file);
+  assert.equal(config.configured, true);
+});
+
+test("WEBARCHIVE_CONFIG overrides the default config path", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wa-"));
+  const file = join(dir, "custom.json");
+  await writeFile(file, JSON.stringify({ archiveDir: "/from/custom" }));
+  const config = loadConfig({ env: { WEBARCHIVE_CONFIG: file }, home: "/nonexistent" });
+  assert.equal(config.archiveDir, "/from/custom");
+  assert.equal(config.configPath, file);
+});
+
+test("loadConfig reports the source of each value", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wa-"));
+  const file = join(dir, "config.json");
+  await writeFile(file, JSON.stringify({ archiveDir: "/from/file", port: 9000 }));
+  const config = loadConfig({ env: { PORT: "9100" }, configFile: file });
+  assert.deepEqual(config.sources, { archiveDir: "file", dataDir: "default", port: "env", machineName: "default", openAfterSave: "default" });
+});
+
+test("saveConfig writes the file-managed values, creating the directory", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wa-"));
+  const file = join(dir, "nested", "config.json");
+  await saveConfig(file, { archiveDir: "/a", port: 8800, machineName: "box", openAfterSave: false });
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), { archiveDir: "/a", port: 8800, machineName: "box", openAfterSave: false });
+});
+
+test("saveConfig preserves unrelated keys already in the file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wa-"));
+  const file = join(dir, "config.json");
+  await writeFile(file, JSON.stringify({ archiveDir: "/old", dataDir: "/keep" }));
+  await saveConfig(file, { archiveDir: "/new" });
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), { archiveDir: "/new", dataDir: "/keep" });
 });
 
 test("config file values are overridden by env", async () => {

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebArchive 設定</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">WebArchive</div>
+  <a href="/" id="backLink">← 一覧へ戻る</a>
+  <div class="status mono" id="configPath"></div>
+</header>
+<div class="layout">
+  <main class="settings">
+    <h1 id="heading">設定</h1>
+    <p class="hint" id="intro"></p>
+    <div id="notice"></div>
+    <form id="settingsForm">
+      <div class="field">
+        <label for="archiveDir">保存先フォルダ(archiveDir)</label>
+        <input id="archiveDir" name="archiveDir" type="text" placeholder="/Users/me/Dropbox/WebArchive" autocomplete="off" spellcheck="false">
+        <div class="hint" data-hint="archiveDir">SingleFile で保存したページを置く Dropbox 共有フォルダ。絶対パス、または ~/ から始まるパス。</div>
+      </div>
+      <div class="field">
+        <label for="machineName">マシン名(machineName)</label>
+        <input id="machineName" name="machineName" type="text" autocomplete="off" spellcheck="false">
+        <div class="hint" data-hint="machineName">どのマシンで保存したかを記録する名前。</div>
+      </div>
+      <div class="field">
+        <label for="port">ポート(port)</label>
+        <input id="port" name="port" type="number" min="1" max="65535">
+        <div class="hint" data-hint="port">変更はサーバの再起動後に有効。SingleFile 側の URL も合わせて変更すること。</div>
+      </div>
+      <div class="field">
+        <label class="checkbox"><input id="openAfterSave" name="openAfterSave" type="checkbox"> 保存後に編集画面を既定のブラウザで開く(openAfterSave)</label>
+      </div>
+      <div class="actions">
+        <button type="submit" id="save">保存</button>
+        <span class="status" id="saveStatus"></span>
+      </div>
+    </form>
+  </main>
+</div>
+<script src="/settings.js" type="module"></script>
+</body>
+</html>

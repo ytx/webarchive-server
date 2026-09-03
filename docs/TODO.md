@@ -34,4 +34,3 @@
 - 項目画面: blur 保存と Cmd+S が重なると保存時刻表示が古い方になることがある。
   `beforeunload` に `returnValue` を設定していない。
 - 自動保存経路では保存後にブラウザを開かない(設計どおり。`OPEN_AFTER_SAVE=false` 推奨)。
-- 設定ファイル `config.json` の既定パスが cwd 相対。

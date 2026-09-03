@@ -69,3 +69,17 @@ textarea#memo:focus, .tagbox:focus-within { outline: none; border-color: var(--a
 .notice.broken { background: #fbf6e5; border: 1px solid #e5d7a3; }
 .notice .choice { margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
 .notice .choice pre { margin: 6px 0; white-space: pre-wrap; font: inherit; }
+/* settings screen */
+main.settings { width: 560px; max-width: 100%; display: flex; flex-direction: column; gap: 20px; padding: 24px; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; }
+main.settings h1 { margin: 0; font-size: 18px; font-weight: 600; }
+main.settings p.hint { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
+main.settings form { display: flex; flex-direction: column; gap: 20px; }
+main.settings input[type="text"], main.settings input[type="number"] { padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
+main.settings input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+main.settings input:disabled { background: var(--bg); color: var(--muted); }
+main.settings .checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 400; color: var(--ink); letter-spacing: 0; }
+main.settings .hint.env { color: var(--danger); }
+main.settings .actions { margin-top: 0; align-items: center; }
+main.settings button[type="submit"] { font-size: 13px; padding: 7px 14px; border-radius: 4px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+main.settings #saveStatus { font-size: 12px; color: var(--muted); }
+header.top a.settings-link { margin-left: 8px; color: var(--muted); font-size: 12px; }

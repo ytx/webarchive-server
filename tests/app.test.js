@@ -35,12 +35,45 @@ function fakeOpenInBrowser() {
   return fn;
 }
 
-async function setup({ openAfterSave = false, openInBrowser = fakeOpenInBrowser() } = {}) {
+function fakeRuntime(config) {
+  const calls = [];
+  return {
+    config,
+    calls,
+    async apply(patch) {
+      calls.push(patch);
+      for (const key of ["archiveDir", "machineName", "openAfterSave"]) {
+        if (patch[key] !== undefined && config.sources[key] !== "env") {
+          config[key] = patch[key];
+          config.sources[key] = "file";
+        }
+      }
+      config.configured = Boolean(config.archiveDir);
+      return { restartRequired: patch.port !== undefined && patch.port !== config.port };
+    }
+  };
+}
+
+async function setup({ openAfterSave = false, openInBrowser = fakeOpenInBrowser(), configured = true, sources = {} } = {}) {
   const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
   const store = new Store(":memory:");
-  const config = { archiveDir, dataDir: archiveDir, port: 8765, machineName: "mac", openAfterSave };
-  const app = withDefaultHost(createApp({ config, store, openInBrowser }), "127.0.0.1:8765");
-  return { app, store, archiveDir, openInBrowser };
+  const config = {
+    archiveDir: configured ? archiveDir : null,
+    configured,
+    dataDir: archiveDir,
+    port: 8765,
+    machineName: "mac",
+    openAfterSave,
+    configPath: join(archiveDir, "config.json"),
+    sources: { archiveDir: "file", dataDir: "default", port: "default", machineName: "file", openAfterSave: "default", ...sources }
+  };
+  const runtime = fakeRuntime(config);
+  const app = withDefaultHost(createApp({ config, store, openInBrowser, runtime, home: "/home/me" }), "127.0.0.1:8765");
+  return { app, store, archiveDir, openInBrowser, runtime, config };
+}
+
+async function putSettings(app, body) {
+  return app.request("/api/settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 }
 
 async function upload(app, url = "https://form.example/") {
@@ -211,4 +244,87 @@ test("an unreadable conflict copy shows memo null, and resolving it 400s without
   assert.equal(res.status, 400);
   assert.deepEqual(await res.json(), { error: "conflict copy is unreadable" });
   assert.deepEqual((await readdir(dir)).sort(), [`${id}.html`, `${id}.json`, conflictName].sort());
+});
+
+test("GET /api/settings reports values, sources and the config path", async () => {
+  const { app, archiveDir, config } = await setup({ sources: { port: "env" } });
+  const res = await app.request("/api/settings");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.configured, true);
+  assert.equal(body.configPath, config.configPath);
+  assert.deepEqual(body.values, { archiveDir, port: 8765, machineName: "mac", openAfterSave: false });
+  assert.deepEqual(body.sources, { archiveDir: "file", port: "env", machineName: "file", openAfterSave: "default" });
+});
+
+test("PUT /api/settings applies valid values through the runtime", async () => {
+  const { app, runtime } = await setup();
+  const res = await putSettings(app, { archiveDir: "/new/archive", port: 9000, machineName: "box", openAfterSave: true });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.restartRequired, true);
+  assert.equal(body.values.archiveDir, "/new/archive");
+  assert.equal(body.values.machineName, "box");
+  assert.deepEqual(runtime.calls, [{ archiveDir: "/new/archive", port: 9000, machineName: "box", openAfterSave: true }]);
+});
+
+test("PUT /api/settings expands a leading ~/ in archiveDir", async () => {
+  const { app, runtime } = await setup();
+  const res = await putSettings(app, { archiveDir: "~/Dropbox/WebArchive" });
+  assert.equal(res.status, 200);
+  assert.equal(runtime.calls[0].archiveDir, "/home/me/Dropbox/WebArchive");
+});
+
+test("PUT /api/settings rejects invalid values with 400 and does not apply", async () => {
+  const { app, runtime } = await setup();
+  for (const body of [
+    { archiveDir: "relative/path" },
+    { archiveDir: "" },
+    { port: 0 },
+    { port: "abc" },
+    { machineName: "" },
+    { machineName: "   " },
+    { openAfterSave: "yes" }
+  ]) {
+    const res = await putSettings(app, body);
+    assert.equal(res.status, 400, JSON.stringify(body));
+    assert.ok((await res.json()).error);
+  }
+  assert.deepEqual(runtime.calls, []);
+});
+
+test("PUT /api/settings with a non-JSON body is 400", async () => {
+  const { app } = await setup();
+  const res = await app.request("/api/settings", { method: "PUT", body: "nope" });
+  assert.equal(res.status, 400);
+});
+
+test("unconfigured server redirects / to /settings and refuses archive APIs with 503", async () => {
+  const { app } = await setup({ configured: false });
+  const root = await app.request("/");
+  assert.equal(root.status, 302);
+  assert.equal(root.headers.get("location"), "/settings");
+  assert.equal((await app.request("/api/items")).status, 503);
+  assert.equal((await app.request("/api/tags")).status, 503);
+  assert.equal((await app.request("/api/items/01J7ZK4M3N5P6Q7R8S9T0V1W2X")).status, 503);
+  assert.equal((await upload(app)).status, 503);
+  const settings = await app.request("/settings");
+  assert.equal(settings.status, 200);
+  assert.match(await settings.text(), /<title>/);
+  assert.equal((await app.request("/api/settings")).status, 200);
+});
+
+test("after the first PUT /api/settings the archive APIs become available", async () => {
+  const { app, archiveDir } = await setup({ configured: false });
+  const res = await putSettings(app, { archiveDir });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).configured, true);
+  assert.equal((await app.request("/")).status, 200);
+  assert.equal((await upload(app)).status, 201);
+});
+
+test("configured server serves /settings and / normally", async () => {
+  const { app } = await setup();
+  assert.equal((await app.request("/settings")).status, 200);
+  assert.equal((await app.request("/")).status, 200);
 });

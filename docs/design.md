@@ -105,9 +105,15 @@ CREATE VIRTUAL TABLE items_fts USING fts5(id UNINDEXED, title, url, memo, tags,
 ## 3. サーバ
 
 - Node.js 22 以降。Hono、`node:sqlite`、chokidar、ulid。
-- 設定は環境変数または設定ファイル(`config.json`)で与える:
+- 設定は環境変数または設定ファイル(`~/.config/webarchive/config.json`、
+  `XDG_CONFIG_HOME` と `WEBARCHIVE_CONFIG` を尊重)で与える:
   `ARCHIVE_DIR`、`DATA_DIR`、`PORT`(既定 8765)、`MACHINE_NAME`(既定 hostname)、
-  `OPEN_AFTER_SAVE`(既定 true、保存後に既定ブラウザで編集画面を開く)。
+  `OPEN_AFTER_SAVE`(既定 true、保存後に既定ブラウザで編集画面を開く)。環境変数が優先。
+- `ARCHIVE_DIR` が未設定なら「未設定状態」で起動し、`/settings` を既定ブラウザで開く。
+  未設定の間は `/` と `/items/*` を `/settings` にリダイレクトし、アーカイブ系 API は 503 を返す。
+- 設定画面(`/settings`)からの保存は設定ファイルへ書き、`archiveDir`/`machineName` の変更は
+  索引の再構築と監視の張り直しでその場で反映する。`port` の変更は再起動後に有効。
+  環境変数で与えた項目は設定画面では読み取り専用。
 - 127.0.0.1 のみにバインド。CORS は拡張からの POST を許可するため
   `chrome-extension://` オリジンに限って許可する。
 
@@ -123,7 +129,9 @@ CREATE VIRTUAL TABLE items_fts USING fts5(id UNINDEXED, title, url, memo, tags,
 | `DELETE /api/items/:id` | HTML と JSON を削除 |
 | `GET /api/tags` | `[{ "tag", "count" }]` |
 | `GET /items/:id/page` | 保存 HTML を配信。`Content-Security-Policy: sandbox` を付ける |
-| `GET /`, `GET /items/:id` | Web UI |
+| `GET /api/settings` | 設定値、項目ごとの由来(`env`/`file`/`default`)、設定ファイルのパス、`configured` |
+| `PUT /api/settings` | `archiveDir`、`port`、`machineName`、`openAfterSave` を検証して保存・反映。`restartRequired` を返す |
+| `GET /`, `GET /items/:id`, `GET /settings` | Web UI |
 
 タイトルは受信 HTML の `<title>` から抽出する。無ければ multipart のファイル名(拡張子除去)を使う。
 受信 HTML は SingleFile の出力をそのまま保存し、加工しない。
