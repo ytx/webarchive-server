@@ -114,6 +114,8 @@ CREATE VIRTUAL TABLE items_fts USING fts5(id UNINDEXED, title, url, memo, tags,
 - 設定画面(`/settings`)からの保存は設定ファイルへ書き、`archiveDir`/`machineName` の変更は
   索引の再構築と監視の張り直しでその場で反映する。`port` の変更は再起動後に有効。
   環境変数で与えた項目は設定画面では読み取り専用。
+- `webarchive service install|uninstall|status` でログイン時自動起動として登録できる
+  (macOS は launchd の LaunchAgent、Windows はタスクスケジューラ。`src/service.js`)。
 - 127.0.0.1 のみにバインド。CORS は拡張からの POST を許可するため
   `chrome-extension://` オリジンに限って許可する。
 

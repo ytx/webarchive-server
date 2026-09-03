@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Local server that stores SingleFile captures in a shared folder and lets you tag, annotate and search them",
   "type": "module",
-  "bin": { "webarchive": "src/server.js" },
+  "bin": { "webarchive": "src/cli.js" },
   "files": ["src", "public"],
   "engines": { "node": ">=22.13" },
   "scripts": {

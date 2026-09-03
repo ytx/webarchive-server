@@ -18,6 +18,27 @@ webarchive
 
 設定画面は一覧画面のヘッダ「設定」からいつでも開ける。保存した内容はすぐに反映される(保存先フォルダを変えると索引を再構築する)。ポートだけは再起動後に有効になる。
 
+## サービスとして常駐させる
+
+SingleFile から常に保存できるよう、ログイン時に自動起動するサービスとして登録できる。macOS と Windows に対応(Linux は未対応)。
+
+```bash
+webarchive service install     # 登録して今すぐ起動
+webarchive service status      # 登録・稼働状況を表示
+webarchive service uninstall   # 停止して登録解除
+```
+
+`install` は実行時の `node` と `src/server.js` の絶対パスを定義に書き込むので、Node やパッケージを入れ直した場合は `install` をやり直すこと。
+
+| OS | 仕組み | 定義の場所 | ログ |
+|---|---|---|---|
+| macOS | launchd(LaunchAgent) | `~/Library/LaunchAgents/io.github.ytx.webarchive.plist` | `~/Library/Logs/webarchive/stdout.log`, `stderr.log` |
+| Windows | タスクスケジューラ(ログオン時) | タスク名 `webarchive` | なし(コンソールウィンドウに出力) |
+
+`install` 実行時に `WEBARCHIVE_CONFIG` や `ARCHIVE_DIR` などの設定系の環境変数が設定されていると、macOS ではその値を plist に固定で書き込む。設定画面から変更できるようにしたい場合は、環境変数を付けずに `install` すること。
+
+Windows のログオン時タスクは node のコンソールウィンドウが表示される。閉じるとサーバも止まるので、最小化しておくこと。
+
 ## 設定ファイル
 
 設定は `~/.config/webarchive/config.json`(`XDG_CONFIG_HOME` が設定されていればその下の `webarchive/config.json`)に保存される。
