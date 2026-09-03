@@ -1,6 +1,14 @@
 # webarchive-server
 
-SingleFile でキャプチャしたページを Dropbox 共有フォルダに保存し、メモ・タグを付けて検索するローカルサーバ。
+SingleFile でキャプチャしたページを Dropbox などの共有フォルダに保存し、メモ・タグを付けて検索するローカルサーバ。
+
+保存先はローカルのフォルダとして見えるものなら何でもよい。Dropbox のほか、iCloud Drive、OneDrive、Google Drive for desktop、Syncthing、Nextcloud などのデスクトップクライアントで同期するフォルダで動く。
+サーバは各サービスの API を使わず、フォルダへのファイル書き込みと変更監視だけで動作する。競合コピー(`<ULID>` で始まり `.json` で終わる別名ファイル)は、どのサービスが作ったものでも一覧に「競合」として表示する。
+
+次の点に注意すること。
+
+- **ファイルオンデマンドは切る。** Dropbox の「オンラインのみ」、OneDrive の Files On-Demand、iCloud の「Mac のストレージを最適化」、Google Drive の「ストリーミング」のように実体をローカルに置かない設定だと、ページ表示や索引構築のたびにダウンロードが走り、オフラインでは失敗する。保存先フォルダは「ローカルで利用可能にする」「常にこのデバイスに保持」にしておく。
+- **ネットワークドライブ(SMB / NFS / WebDAV のマウント)は非推奨。** 他のマシンが書いた変更のイベントが届かず、再起動して索引を再構築するまで反映されない。
 
 Node.js 22.13 以上が必要(索引に `node:sqlite` を使うため)。`package.json` の `engines` にもこの制約がある。
 
@@ -8,6 +16,9 @@ Node.js 22.13 以上が必要(索引に `node:sqlite` を使うため)。`packag
 
 ```bash
 npm install -g github:ytx/webarchive-server
+```
+
+```bash
 webarchive
 ```
 
@@ -25,7 +36,7 @@ npm install -g github:ytx/webarchive-server
 サービスとして登録している場合、定義に書かれた `src/server.js` のパスは再インストール後も同じなので書き直しは不要。ただし起動中のプロセスは古いコードのまま動き続けるので、`webarchive service install` をもう一度実行して再起動すること。
 
 初回起動時は保存先フォルダが未設定なので、サーバは `http://127.0.0.1:8765/settings` を既定のブラウザで開く。
-設定画面で保存先フォルダ(Dropbox 共有フォルダ)、マシン名、ポート、保存後にブラウザを開くかどうかを指定して保存すると、そのまま使い始められる。
+設定画面で保存先フォルダ(Dropbox などの共有フォルダ)、マシン名、ポート、保存後にブラウザを開くかどうかを指定して保存すると、そのまま使い始められる。
 
 設定画面は一覧画面のヘッダ「設定」からいつでも開ける。保存した内容はすぐに反映される(保存先フォルダを変えると索引を再構築する)。ポートだけは再起動後に有効になる。
 
@@ -33,10 +44,22 @@ npm install -g github:ytx/webarchive-server
 
 SingleFile から常に保存できるよう、ログイン時に自動起動するサービスとして登録できる。macOS と Windows に対応(Linux は未対応)。
 
+登録して今すぐ起動:
+
 ```bash
-webarchive service install     # 登録して今すぐ起動
-webarchive service status      # 登録・稼働状況を表示
-webarchive service uninstall   # 停止して登録解除
+webarchive service install
+```
+
+登録・稼働状況を表示:
+
+```bash
+webarchive service status
+```
+
+停止して登録解除:
+
+```bash
+webarchive service uninstall
 ```
 
 `install` は実行時の `node` と `src/server.js` の絶対パスを定義に書き込むので、Node やパッケージを入れ直した場合は `install` をやり直すこと。
