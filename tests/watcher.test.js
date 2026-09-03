@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, unlink, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -19,6 +19,26 @@ async function waitFor(check, timeoutMs = 4000) {
   }
   throw new Error("timed out waiting for condition");
 }
+
+test("an html arriving before its sidecar is indexed as pending and no sidecar is written", async () => {
+  const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
+  const dir = join(archiveDir, "items", "2026", "09");
+  await mkdir(dir, { recursive: true });
+  const store = new Store(":memory:");
+  const id = "01J7ZK4M3N5P6Q7R8S9T0V1W6B";
+  const watcher = startWatcher({ archiveDir, machineName: "m", store, debounceMs: 50 });
+  try {
+    await sleep(200);
+    await writeFile(join(dir, `${id}.html`), "<html></html>");
+    await waitFor(() => store.get(id)?.status === "pending");
+    const item = store.get(id);
+    assert.equal(item.savedOn, null);
+    assert.equal(item.memo, "");
+    assert.deepEqual((await readdir(dir)).filter((name) => name.includes(id)), [`${id}.html`]);
+  } finally {
+    await watcher.close();
+  }
+});
 
 test("watcher reflects external sidecar writes, edits and deletes", async () => {
   const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));

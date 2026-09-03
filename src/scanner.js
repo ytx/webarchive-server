@@ -34,7 +34,7 @@ export async function rebuildIndex({ archiveDir, machineName, store }) {
   store.clear();
   let count = 0;
   for (const { relDir, id } of found) {
-    const item = await readItem({ archiveDir, machineName }, relDir, id);
+    const item = await readItem({ archiveDir, machineName }, relDir, id, { createSidecar: true });
     if (item) {
       store.upsert(item);
       count++;
