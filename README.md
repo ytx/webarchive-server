@@ -1,18 +1,20 @@
 # webarchive-server
 
-[SingleFile](https://www.getsinglefile.com/) でキャプチャしたページを Dropbox などの共有フォルダに保存し、メモ・タグを付けて検索するローカルサーバ。
+[日本語](README-ja.md)
 
-保存先はローカルのフォルダとして見えるものなら何でもよい。Dropbox のほか、iCloud Drive、OneDrive、Google Drive for desktop、Syncthing、Nextcloud などのデスクトップクライアントで同期するフォルダで動く。
-サーバは各サービスの API を使わず、フォルダへのファイル書き込みと変更監視だけで動作する。競合コピー(`<ULID>` で始まり `.json` で終わる別名ファイル)は、どのサービスが作ったものでも一覧に「競合」として表示する。
+A local server that stores pages captured with [SingleFile](https://www.getsinglefile.com/) in a shared folder such as Dropbox, and lets you annotate them with memos and tags and search them.
 
-次の点に注意すること。
+Any folder that appears as a local directory works as the archive. Besides Dropbox, folders synced by the desktop clients of iCloud Drive, OneDrive, Google Drive for desktop, Syncthing, Nextcloud and the like are fine.
+The server does not use any service's API; it only writes files into the folder and watches it for changes. Conflict copies (files that start with the `<ULID>` and end with `.json` but are not the sidecar itself) are shown as "conflict" in the list no matter which service created them.
 
-- **ファイルオンデマンドは切る。** Dropbox の「オンラインのみ」、OneDrive の Files On-Demand、iCloud の「Mac のストレージを最適化」、Google Drive の「ストリーミング」のように実体をローカルに置かない設定だと、ページ表示や索引構築のたびにダウンロードが走り、オフラインでは失敗する。保存先フォルダは「ローカルで利用可能にする」「常にこのデバイスに保持」にしておく。
-- **ネットワークドライブ(SMB / NFS / WebDAV のマウント)は非推奨。** 他のマシンが書いた変更のイベントが届かず、再起動して索引を再構築するまで反映されない。
+Keep the following in mind.
 
-Node.js 22.13 以上が必要(索引に `node:sqlite` を使うため)。`package.json` の `engines` にもこの制約がある。
+- **Turn off files on-demand.** Settings that keep no local copy, such as Dropbox "online-only", OneDrive Files On-Demand, iCloud "Optimize Mac Storage" or Google Drive "streaming", make every page view and index rebuild download files, and fail offline. Mark the archive folder "Make available offline" / "Always keep on this device".
+- **Network mounts (SMB / NFS / WebDAV) are not recommended.** Change events for files written by other machines do not arrive, so they are not indexed until the server is restarted and the index rebuilt.
 
-## インストールと起動
+Node.js 22.13 or later is required (the index uses `node:sqlite`). The `engines` field in `package.json` enforces this.
+
+## Install and run
 
 ```bash
 npm install -g github:ytx/webarchive-server
@@ -22,114 +24,113 @@ npm install -g github:ytx/webarchive-server
 webarchive
 ```
 
-リポジトリから直接動かす場合は `npm install` のあと `npm start`。
+To run straight from the repository, `npm install` and then `npm start`.
 
-### 更新
+### Updating
 
-同じコマンドをもう一度実行すると、GitHub の `main` の最新コミットを取得して上書きインストールする(`npm update -g` は git 参照のパッケージには効かない)。
-特定のコミットやタグに固定したい場合は `github:ytx/webarchive-server#<コミットまたはタグ>` と書く。
+Run the same command again to fetch the latest commit on `main` from GitHub and install over the existing copy (`npm update -g` does not work for git-referenced packages).
+To pin a specific commit or tag, write `github:ytx/webarchive-server#<commit-or-tag>`.
 
 ```bash
 npm install -g github:ytx/webarchive-server
 ```
 
-サービスとして登録している場合、定義に書かれた `src/server.js` のパスは再インストール後も同じなので書き直しは不要。ただし起動中のプロセスは古いコードのまま動き続けるので、`webarchive service install` をもう一度実行して再起動すること。
+If the server is registered as a service, the path to `src/server.js` written into the service definition is the same after reinstalling, so the definition does not need to be rewritten. The running process keeps executing the old code, however, so run `webarchive service install` again to restart it.
 
-初回起動時は保存先フォルダが未設定なので、サーバは `http://127.0.0.1:8765/settings` を既定のブラウザで開く。
-設定画面で保存先フォルダ(Dropbox などの共有フォルダ)、マシン名、ポート、保存後にブラウザを開くかどうかを指定して保存すると、そのまま使い始められる。
+On first start no archive folder is configured, so the server opens `http://127.0.0.1:8765/settings` in the default browser.
+Enter the archive folder (a shared folder such as Dropbox), machine name, port and whether to open the browser after saving, press Save, and you are ready to go.
 
-設定画面は一覧画面のヘッダ「設定」からいつでも開ける。保存した内容はすぐに反映される(保存先フォルダを変えると索引を再構築する)。ポートだけは再起動後に有効になる。
+The settings screen can be opened at any time from the gear icon at the right end of the list header. Next to it are toggles for the display language (日本語 / English) and dark / light mode; the choices are remembered per browser (the defaults follow the browser language and the OS appearance). Closing the tab asks for confirmation (moving between the list, item and settings screens does not). Saved settings take effect immediately (changing the archive folder rebuilds the index). Only the port takes effect after a restart.
 
-## サービスとして常駐させる
+## Running as a service
 
-SingleFile から常に保存できるよう、ログイン時に自動起動するサービスとして登録できる。macOS と Windows に対応(Linux は未対応)。
+So that SingleFile can save at any time, the server can be registered as a service that starts at login. macOS and Windows are supported (Linux is not).
 
-登録して今すぐ起動:
+Register and start now:
 
 ```bash
 webarchive service install
 ```
 
-登録・稼働状況を表示:
+Show registration and running state:
 
 ```bash
 webarchive service status
 ```
 
-停止して登録解除:
+Stop and unregister:
 
 ```bash
 webarchive service uninstall
 ```
 
-`install` は実行時の `node` と `src/server.js` の絶対パスを定義に書き込むので、Node やパッケージを入れ直した場合は `install` をやり直すこと。
+`install` writes the absolute paths of the current `node` and `src/server.js` into the definition, so run `install` again after reinstalling Node or the package.
 
-| OS | 仕組み | 定義の場所 | ログ |
+| OS | Mechanism | Definition | Logs |
 |---|---|---|---|
-| macOS | launchd(LaunchAgent) | `~/Library/LaunchAgents/io.github.ytx.webarchive.plist` | `~/Library/Logs/webarchive/stdout.log`, `stderr.log` |
-| Windows | タスクスケジューラ(ログオン時) | タスク名 `webarchive` | なし(コンソールウィンドウに出力) |
+| macOS | launchd (LaunchAgent) | `~/Library/LaunchAgents/io.github.ytx.webarchive.plist` | `~/Library/Logs/webarchive/stdout.log`, `stderr.log` |
+| Windows | Task Scheduler (at logon) | task named `webarchive` | none (written to the console window) |
 
-`install` 実行時に `WEBARCHIVE_CONFIG` や `ARCHIVE_DIR` などの設定系の環境変数が設定されていると、macOS ではその値を plist に固定で書き込む。設定画面から変更できるようにしたい場合は、環境変数を付けずに `install` すること。
+If configuration environment variables such as `WEBARCHIVE_CONFIG` or `ARCHIVE_DIR` are set when `install` runs, on macOS their values are frozen into the plist. To keep those values editable from the settings screen, run `install` without them.
 
-Windows のログオン時タスクは node のコンソールウィンドウが表示される。閉じるとサーバも止まるので、最小化しておくこと。
+The Windows logon task shows a console window for node. Closing it stops the server, so minimize it instead.
 
-## 設定ファイル
+## Configuration file
 
-設定は `~/.config/webarchive/config.json`(`XDG_CONFIG_HOME` が設定されていればその下の `webarchive/config.json`)に保存される。
-`WEBARCHIVE_CONFIG` 環境変数でファイルの場所を変更できる。設定画面で保存するとこのファイルが書かれる。
+Settings are stored in `~/.config/webarchive/config.json` (or `webarchive/config.json` under `XDG_CONFIG_HOME` when that is set).
+The `WEBARCHIVE_CONFIG` environment variable changes the file's location. Saving from the settings screen writes this file.
 
 ```json
 { "archiveDir": "/Users/me/Dropbox/WebArchive", "port": 8765, "machineName": "macbook", "openAfterSave": true }
 ```
 
-環境変数でも指定でき、環境変数が設定ファイルより優先される。環境変数で指定した項目は設定画面では読み取り専用になる。
+Everything can also be given as environment variables, which take precedence over the file. Values set through environment variables are read-only in the settings screen.
 
 ```bash
 ARCHIVE_DIR=~/Dropbox/WebArchive MACHINE_NAME=macbook webarchive
 ```
 
-| 環境変数 | 設定ファイルのキー | 既定 |
+| Environment variable | Config file key | Default |
 |---|---|---|
-| `ARCHIVE_DIR` | `archiveDir` | なし(未設定なら設定画面を開く) |
-| `DATA_DIR` | `dataDir` | `~/.local/share/webarchive`(索引 SQLite の置き場。設定画面には出ない) |
+| `ARCHIVE_DIR` | `archiveDir` | none (the settings screen opens when unset) |
+| `DATA_DIR` | `dataDir` | `~/.local/share/webarchive` (where the SQLite index lives; not shown in the settings screen) |
 | `PORT` | `port` | `8765` |
-| `MACHINE_NAME` | `machineName` | ホスト名 |
+| `MACHINE_NAME` | `machineName` | host name |
 | `OPEN_AFTER_SAVE` | `openAfterSave` | `true` |
-| `WEBARCHIVE_CONFIG` | (ファイル自体の場所) | `~/.config/webarchive/config.json` |
+| `WEBARCHIVE_CONFIG` | (location of the file itself) | `~/.config/webarchive/config.json` |
 
-設定ファイル内のパスはシェルを経由しないため `~` は展開されない。`archiveDir`/`dataDir` には
-`/Users/me/Dropbox/WebArchive` のような絶対パスを書くこと(設定画面から入力した場合は先頭の `~/` をホームに展開して保存する)。
-`ARCHIVE_DIR=~/Dropbox/WebArchive` のように環境変数として指定した場合はシェルが `~` を展開する。
+Paths in the configuration file do not pass through a shell, so `~` is not expanded. Write absolute paths such as
+`/Users/me/Dropbox/WebArchive` for `archiveDir` / `dataDir` (a value entered in the settings screen has a leading `~/` expanded to the home directory before it is saved).
+When given as an environment variable such as `ARCHIVE_DIR=~/Dropbox/WebArchive`, the shell expands `~`.
 
-以前のバージョンではカレントディレクトリの `config.json` を読んでいた。今は読まないので、上記の場所へ移動すること(起動時に警告を出す)。
+Earlier versions read `config.json` from the current directory. That file is no longer read; move it to the location above (the server prints a warning at startup).
 
-索引 SQLite は `~/.local/share/webarchive/index.sqlite`(`DATA_DIR` で変更可)。削除しても起動時に再構築される。
+The SQLite index is `~/.local/share/webarchive/index.sqlite` (change with `DATA_DIR`). It can be deleted at any time and is rebuilt on startup.
 
-## SingleFile の設定
+## SingleFile settings
 
-| 設定 | 値 |
+| Setting | Value |
 |---|---|
-| 保存先 | REST form API |
+| Destination | REST form API |
 | URL | `http://127.0.0.1:8765/api/singlefile` |
-| ファイルのフィールド名 | `file` |
-| URL のフィールド名 | `url` |
-| 認証トークン | 任意(検証しない) |
+| File field name | `file` |
+| URL field name | `url` |
+| Authorization token | anything (not checked) |
 
-## 保存後に自動でタブを開く
+## Opening a tab automatically after saving
 
-保存が成功すると、サーバはレスポンスに含まれる `openUrl` を既定のブラウザで自動的に開く(`OPEN_AFTER_SAVE`、既定で有効)。
+When a save succeeds, the server opens the `openUrl` from the response in the default browser (`OPEN_AFTER_SAVE`, enabled by default).
 
 ```bash
 OPEN_AFTER_SAVE=false webarchive
 ```
 
-設定画面のチェックボックス、または設定ファイルでも指定できる。
+It can also be set with the checkbox in the settings screen or in the configuration file.
 
 ```json
 { "openAfterSave": false }
 ```
 
-`OPEN_AFTER_SAVE` の値は `false` / `0` / `no` / `off`(大文字小文字は区別しない)のいずれかで無効になり、それ以外は有効として扱われる。環境変数が `config.json` より優先される。
+`OPEN_AFTER_SAVE` is disabled by any of `false` / `0` / `no` / `off` (case-insensitive); every other value enables it. The environment variable takes precedence over `config.json`.
 
-SingleFile の自動保存(autosave)やバッチ保存でタブが大量に開いてしまう場合は無効にすること。
-
+Disable it if SingleFile's autosave or batch saving opens too many tabs.

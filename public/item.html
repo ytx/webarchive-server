@@ -4,13 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WebArchive</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%231f5f8b%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M12 6.5C10.5 5 8 4.5 3 4.5v14c5 0 7.5.5 9 2 1.5-1.5 4-2 9-2v-14c-5 0-7.5.5-9 2z%27/%3E%3Cpath d=%27M12 6.5v14%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css">
+<script>
+try {
+  var t = localStorage.getItem("webarchive.theme");
+  document.documentElement.dataset.theme = (t === "dark" || t === "light") ? t : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  var l = localStorage.getItem("webarchive.lang");
+  document.documentElement.lang = (l === "ja" || l === "en") ? l : (navigator.language || "").toLowerCase().indexOf("ja") === 0 ? "ja" : "en";
+} catch (e) {}
+</script>
 </head>
 <body>
 <header class="top">
   <div class="brand">WebArchive</div>
-  <a href="/">← 一覧へ戻る</a>
-  <div class="status" id="saveStatus"><span class="dot"></span><span>保存済み</span></div>
+  <a href="/" data-i18n="nav.back">← 一覧へ戻る</a>
+  <div class="status" id="saveStatus"><span class="dot ok"></span><span data-i18n="item.saved">保存済み</span></div>
 </header>
 <div class="layout">
   <aside class="detail">
@@ -21,24 +30,24 @@
       <div class="meta"><span id="savedAt"></span><span id="savedOn"></span></div>
     </div>
     <div class="field">
-      <label for="memo">メモ</label>
+      <label for="memo" data-i18n="item.memo">メモ</label>
       <textarea id="memo"></textarea>
-      <div class="hint">フォーカスが外れると保存 · Cmd+S</div>
+      <div class="hint" data-i18n="item.memoHint">フォーカスが外れると保存 · Cmd+S</div>
     </div>
     <div class="field">
-      <label for="tagInput">タグ</label>
+      <label for="tagInput" data-i18n="item.tags">タグ</label>
       <div class="tagbox" id="tagbox">
-        <input id="tagInput" placeholder="タグを追加…" autocomplete="off">
+        <input id="tagInput" data-i18n-placeholder="item.addTag" autocomplete="off">
       </div>
     </div>
     <div class="actions">
-      <a class="btn" id="openOriginal" target="_blank" rel="noopener">元ページを開く</a>
-      <a class="btn" id="download" download>HTML をダウンロード</a>
-      <button class="btn danger" id="delete">削除</button>
+      <a class="btn" id="openOriginal" target="_blank" rel="noopener" data-i18n="item.openOriginal">元ページを開く</a>
+      <a class="btn" id="download" download data-i18n="item.download">HTML をダウンロード</a>
+      <button class="btn danger" id="delete" data-i18n="item.delete">削除</button>
     </div>
   </aside>
   <section class="preview">
-    <div class="bar"><span>保存したページ</span><span class="mono">sandbox</span><a id="openPage" target="_blank" rel="noopener">新しいタブで開く</a></div>
+    <div class="bar"><span data-i18n="item.savedPage">保存したページ</span><span class="mono">sandbox</span><a id="openPage" target="_blank" rel="noopener" data-i18n="item.openNewTab">新しいタブで開く</a></div>
     <iframe id="frame" sandbox=""></iframe>
   </section>
 </div>

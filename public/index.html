@@ -4,28 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WebArchive</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%231f5f8b%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M12 6.5C10.5 5 8 4.5 3 4.5v14c5 0 7.5.5 9 2 1.5-1.5 4-2 9-2v-14c-5 0-7.5.5-9 2z%27/%3E%3Cpath d=%27M12 6.5v14%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css">
+<script>
+try {
+  var t = localStorage.getItem("webarchive.theme");
+  document.documentElement.dataset.theme = (t === "dark" || t === "light") ? t : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  var l = localStorage.getItem("webarchive.lang");
+  document.documentElement.lang = (l === "ja" || l === "en") ? l : (navigator.language || "").toLowerCase().indexOf("ja") === 0 ? "ja" : "en";
+} catch (e) {}
+</script>
 </head>
 <body>
 <header class="top">
   <div class="brand">WebArchive</div>
   <form class="search" id="searchForm">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6b6b66" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg>
-    <input id="q" type="search" placeholder="タイトル・URL・メモ・タグを検索" autocomplete="off">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg>
+    <input id="q" type="search" data-i18n-placeholder="list.search" autocomplete="off">
   </form>
   <div class="status mono" id="summary"></div>
-  <a class="settings-link" href="/settings">設定</a>
 </header>
 <div class="layout">
   <aside class="side">
-    <h3>状態</h3>
+    <h3 data-i18n="list.status">状態</h3>
     <nav id="statusNav"></nav>
-    <h3>タグ</h3>
+    <h3 data-i18n="list.tags">タグ</h3>
     <nav id="tagNav"></nav>
   </aside>
   <main class="list">
     <div class="toolbar">
-      <div>並び: 保存日 新しい順</div>
+      <div data-i18n="list.sort">並び: 保存日 新しい順</div>
       <div class="pager mono"><a href="#" id="prev">←</a><span id="range"></span><a href="#" id="next">→</a></div>
     </div>
     <div class="rows" id="list"></div>

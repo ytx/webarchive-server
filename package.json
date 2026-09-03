@@ -4,7 +4,7 @@
   "description": "Local server that stores SingleFile captures in a shared folder and lets you tag, annotate and search them",
   "type": "module",
   "bin": { "webarchive": "src/cli.js" },
-  "files": ["src", "public"],
+  "files": ["src", "public", "README-ja.md"],
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node src/server.js",

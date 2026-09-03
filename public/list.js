@@ -1,3 +1,8 @@
+import { t } from "./i18n.js";
+import { initUi } from "./ui.js";
+
+initUi();
+
 const state = { q: "", tag: "", status: "", page: 1, limit: 50 };
 const qInput = document.getElementById("q");
 const listEl = document.getElementById("list");
@@ -50,10 +55,10 @@ function domain(url) {
 }
 
 function openInNewTabLink(href) {
-  const link = el("a", { class: "open", href, title: "新しいタブで開く" });
+  const link = el("a", { class: "open", href, title: t("list.openNewTab") });
   link.setAttribute("target", "_blank");
   link.setAttribute("rel", "noopener");
-  link.setAttribute("aria-label", "新しいタブで開く");
+  link.setAttribute("aria-label", t("list.openNewTab"));
   link.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M11 9v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7"/></svg>';
   return link;
 }
@@ -85,13 +90,13 @@ async function load() {
 function renderSide(tags, total, untagged, conflicts) {
   const statusNav = document.getElementById("statusNav");
   statusNav.replaceChildren(
-    filterLink("すべて", total, !state.tag && !state.status, { tag: "", status: "" }),
-    filterLink("タグなし", untagged, state.tag === "-", { tag: "-", status: "" }),
-    filterLink("競合あり", conflicts, state.status === "conflict", { tag: "", status: "conflict" }, "danger")
+    filterLink(t("list.all"), total, !state.tag && !state.status, { tag: "", status: "" }),
+    filterLink(t("list.untagged"), untagged, state.tag === "-", { tag: "-", status: "" }),
+    filterLink(t("list.conflicts"), conflicts, state.status === "conflict", { tag: "", status: "conflict" }, "danger")
   );
   const tagNav = document.getElementById("tagNav");
   tagNav.replaceChildren(...tags.map(({ tag, count }) => filterLink(tag, count, state.tag === tag, { tag, status: "" })));
-  document.getElementById("summary").textContent = `${total.toLocaleString()} items`;
+  document.getElementById("summary").textContent = t("list.items", { n: total.toLocaleString() });
 }
 
 function renderList({ items, total, page, limit }) {
@@ -101,23 +106,23 @@ function renderList({ items, total, page, limit }) {
   document.getElementById("prev").style.visibility = page > 1 ? "visible" : "hidden";
   document.getElementById("next").style.visibility = to < total ? "visible" : "hidden";
   if (items.length === 0) {
-    listEl.replaceChildren(el("div", { class: "empty" }, ["該当する項目はありません"]));
+    listEl.replaceChildren(el("div", { class: "empty" }, [t("list.empty")]));
     return;
   }
   listEl.replaceChildren(...items.map((item) => {
     const title = el("div", { class: "title" });
     if (item.status === "conflict") {
-      title.append(el("span", { class: "badge" }, ["競合"]));
+      title.append(el("span", { class: "badge" }, [t("badge.conflict")]));
     } else if (item.status === "pending") {
-      title.append(el("span", { class: "badge pending" }, ["同期中"]));
+      title.append(el("span", { class: "badge pending" }, [t("badge.pending")]));
     } else if (item.status === "broken") {
-      title.append(el("span", { class: "badge" }, ["要修復"]));
+      title.append(el("span", { class: "badge" }, [t("badge.broken")]));
     }
     title.append(item.title || item.url || item.id);
     const subText = [domain(item.url), item.memo ? item.memo.split("\n")[0] : ""].filter(Boolean).join(" · ");
     const chips = el("div", { class: "chips" }, item.tags.length
       ? item.tags.map((tag) => el("span", { class: "chip" }, [tag]))
-      : [el("span", { class: "chip none" }, ["タグなし"])]);
+      : [el("span", { class: "chip none" }, [t("chip.none")])]);
     const main = el("a", { class: "main", href: `/items/${item.id}` }, [
       el("div", { style: "min-width:0; display:flex; flex-direction:column; gap:3px;" }, [title, el("div", { class: "sub" }, [subText])]),
       chips,
@@ -150,5 +155,5 @@ document.addEventListener("keydown", (event) => {
 
 readHash();
 load().catch((error) => {
-  listEl.replaceChildren(el("div", { class: "empty" }, [`読み込みに失敗しました: ${error.message}`]));
+  listEl.replaceChildren(el("div", { class: "empty" }, [t("list.loadFailed", { message: error.message })]));
 });

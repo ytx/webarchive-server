@@ -1,3 +1,8 @@
+import { t } from "./i18n.js";
+import { initUi, allowNavigation } from "./ui.js";
+
+initUi({ settingsLink: false });
+
 const form = document.getElementById("settingsForm");
 const saveStatus = document.getElementById("saveStatus");
 const notice = document.getElementById("notice");
@@ -24,16 +29,14 @@ function render(settings) {
   current = settings;
   document.getElementById("configPath").textContent = settings.configPath;
   const firstRun = !settings.configured;
-  document.getElementById("heading").textContent = firstRun ? "初期設定" : "設定";
-  document.getElementById("intro").textContent = firstRun
-    ? "保存先フォルダを指定すると使い始められます。設定はここに表示されたファイルに保存されます。"
-    : "変更は保存時にすぐ反映されます(ポートのみ再起動後)。";
+  document.getElementById("heading").textContent = t(firstRun ? "settings.firstRun" : "settings.title");
+  document.getElementById("intro").textContent = t(firstRun ? "settings.introFirstRun" : "settings.intro");
   document.getElementById("backLink").hidden = firstRun;
   for (const stale of document.querySelectorAll(".hint.env")) {
     stale.remove();
   }
   if (settings.lastError) {
-    setNotice(`前回の保存先フォルダを開けなかったため、未設定の状態で起動しています: ${settings.lastError}`, "broken");
+    setNotice(t("settings.lastError", { message: settings.lastError }), "broken");
   }
   for (const key of FIELDS) {
     const el = input(key);
@@ -49,7 +52,7 @@ function render(settings) {
     if (fromEnv) {
       const envNote = document.createElement("div");
       envNote.className = "hint env";
-      envNote.textContent = `環境変数 ${ENV_NAMES[key]} で指定されているため、ここでは変更できません。`;
+      envNote.textContent = t("settings.envLocked", { name: ENV_NAMES[key] });
       (hint ?? el.closest(".field")).after(envNote);
     }
   }
@@ -84,29 +87,30 @@ async function load() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const wasUnconfigured = !current?.configured;
-  saveStatus.textContent = "保存中…";
+  saveStatus.textContent = t("settings.saving");
   setNotice("");
   try {
     const res = await fetch("/api/settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(collect()) });
     const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     if (!res.ok) {
       saveStatus.textContent = "";
-      setNotice(`保存できませんでした: ${body.error}`, "broken");
+      setNotice(t("settings.rejected", { message: body.error }), "broken");
       return;
     }
     if (wasUnconfigured && body.configured) {
+      allowNavigation();
       location.href = "/";
       return;
     }
     render(body);
-    saveStatus.textContent = "保存しました";
+    saveStatus.textContent = t("settings.saved");
     if (body.restartRequired) {
-      setNotice("ポートの変更はサーバを再起動すると有効になります。", "broken");
+      setNotice(t("settings.restart"), "broken");
     }
   } catch (error) {
     saveStatus.textContent = "";
-    setNotice(`保存に失敗しました: ${error.message}`, "conflict");
+    setNotice(t("settings.failed", { message: error.message }), "conflict");
   }
 });
 
-load().catch((error) => setNotice(`読み込みに失敗しました: ${error.message}`, "conflict"));
+load().catch((error) => setNotice(t("settings.loadFailed", { message: error.message }), "conflict"));

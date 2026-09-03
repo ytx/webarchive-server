@@ -3,13 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WebArchive 設定</title>
+<title>WebArchive</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%231f5f8b%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M12 6.5C10.5 5 8 4.5 3 4.5v14c5 0 7.5.5 9 2 1.5-1.5 4-2 9-2v-14c-5 0-7.5.5-9 2z%27/%3E%3Cpath d=%27M12 6.5v14%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css">
+<script>
+try {
+  var t = localStorage.getItem("webarchive.theme");
+  document.documentElement.dataset.theme = (t === "dark" || t === "light") ? t : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  var l = localStorage.getItem("webarchive.lang");
+  document.documentElement.lang = (l === "ja" || l === "en") ? l : (navigator.language || "").toLowerCase().indexOf("ja") === 0 ? "ja" : "en";
+} catch (e) {}
+</script>
 </head>
 <body>
 <header class="top">
   <div class="brand">WebArchive</div>
-  <a href="/" id="backLink">← 一覧へ戻る</a>
+  <a href="/" id="backLink" data-i18n="nav.back">← 一覧へ戻る</a>
   <div class="status mono" id="configPath"></div>
 </header>
 <div class="layout">
@@ -19,25 +28,25 @@
     <div id="notice"></div>
     <form id="settingsForm">
       <div class="field">
-        <label for="archiveDir">保存先フォルダ(archiveDir)</label>
+        <label for="archiveDir" data-i18n="settings.archiveDir">保存先フォルダ(archiveDir)</label>
         <input id="archiveDir" name="archiveDir" type="text" placeholder="/Users/me/Dropbox/WebArchive" autocomplete="off" spellcheck="false">
-        <div class="hint" data-hint="archiveDir">SingleFile で保存したページを置く Dropbox などの共有フォルダ。絶対パス、または ~/ から始まるパス。</div>
+        <div class="hint" data-hint="archiveDir" data-i18n="settings.archiveDirHint"></div>
       </div>
       <div class="field">
-        <label for="machineName">マシン名(machineName)</label>
+        <label for="machineName" data-i18n="settings.machineName">マシン名(machineName)</label>
         <input id="machineName" name="machineName" type="text" autocomplete="off" spellcheck="false">
-        <div class="hint" data-hint="machineName">どのマシンで保存したかを記録する名前。</div>
+        <div class="hint" data-hint="machineName" data-i18n="settings.machineNameHint"></div>
       </div>
       <div class="field">
-        <label for="port">ポート(port)</label>
+        <label for="port" data-i18n="settings.port">ポート(port)</label>
         <input id="port" name="port" type="number" min="1" max="65535">
-        <div class="hint" data-hint="port">変更はサーバの再起動後に有効。SingleFile 側の URL も合わせて変更すること。</div>
+        <div class="hint" data-hint="port" data-i18n="settings.portHint"></div>
       </div>
       <div class="field">
-        <label class="checkbox"><input id="openAfterSave" name="openAfterSave" type="checkbox"> 保存後に編集画面を既定のブラウザで開く(openAfterSave)</label>
+        <label class="checkbox"><input id="openAfterSave" name="openAfterSave" type="checkbox"> <span data-i18n="settings.openAfterSave"></span></label>
       </div>
       <div class="actions">
-        <button type="submit" id="save">保存</button>
+        <button type="submit" id="save" data-i18n="settings.save">保存</button>
         <span class="status" id="saveStatus"></span>
       </div>
     </form>
