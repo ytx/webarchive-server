@@ -23,15 +23,29 @@ function setStatus(text, color) {
   saveStatus.querySelector("span:last-child").textContent = text;
 }
 
+// Only ever put item.url into an href when it actually parses as an http(s)
+// URL. A hand-edited or repaired sidecar could carry anything (javascript:,
+// data:, garbage text); render that as plain text instead and leave the
+// link buttons inert.
+function safeHttpUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 async function load() {
   [item, allTags] = await Promise.all([api(`/api/items/${id}`), api("/api/tags")]);
   tags = [...item.tags];
   document.title = `${item.title ?? item.id} – WebArchive`;
   document.getElementById("title").textContent = item.title ?? "(タイトルなし)";
   const urlEl = document.getElementById("url");
+  const safeUrl = safeHttpUrl(item.url);
   urlEl.textContent = item.url ?? "";
-  urlEl.href = item.url ?? "#";
-  document.getElementById("openOriginal").href = item.url ?? "#";
+  urlEl.href = safeUrl ?? "#";
+  document.getElementById("openOriginal").href = safeUrl ?? "#";
   document.getElementById("savedAt").textContent = (item.savedAt ?? "").replace("T", " ").slice(0, 16);
   document.getElementById("savedOn").textContent = item.savedOn ?? "";
   document.getElementById("download").href = `/items/${id}/page`;
@@ -53,9 +67,12 @@ function renderNotice() {
     const box = document.createElement("div");
     box.className = "notice conflict";
     box.textContent = "別のマシンで同時に編集されたため、Dropbox が競合コピーを作成しました。採用する内容を選んでください。";
-    box.append(choice("このマシンの内容(現在の表示)", item.memo, item.tags, "main"));
+    box.append(choice("このマシンの内容(現在の表示)", item.memo, item.tags, "main", true));
     for (const conflict of item.conflicts) {
-      box.append(choice(conflict.file, conflict.memo ?? "(読み取り不能)", conflict.tags, `conflict:${conflict.file}`));
+      // A conflict copy whose json is itself broken (memo === null) can't be
+      // adopted: the server would 400 on resolve. Show it read-only instead
+      // of offering a button that always fails.
+      box.append(choice(conflict.file, conflict.memo ?? "(読み取り不能)", conflict.tags, `conflict:${conflict.file}`, conflict.memo !== null));
     }
     notice.append(box);
   } else if (item.status === "broken") {
@@ -79,16 +96,21 @@ function renderNotice() {
   }
 }
 
-function choice(label, memo, chosenTags, choose) {
+function choice(label, memo, chosenTags, choose, canAdopt = true) {
   const box = document.createElement("div");
   box.className = "choice";
   const pre = document.createElement("pre");
   pre.textContent = memo || "(メモなし)";
   const button = Object.assign(document.createElement("button"), { className: "btn", textContent: "この内容を採用" });
-  button.addEventListener("click", async () => {
-    await api(`/api/items/${id}/resolve`, { method: "POST", body: JSON.stringify({ choose }) });
-    await load();
-  });
+  if (!canAdopt) {
+    button.disabled = true;
+    button.hidden = true;
+  } else {
+    button.addEventListener("click", async () => {
+      await api(`/api/items/${id}/resolve`, { method: "POST", body: JSON.stringify({ choose }) });
+      await load();
+    });
+  }
   box.append(Object.assign(document.createElement("div"), { textContent: label, style: "font-weight:600;" }), pre,
     Object.assign(document.createElement("div"), { textContent: chosenTags.length ? chosenTags.join(", ") : "(タグなし)", style: "color:#6b6b66; margin-bottom:6px;" }), button);
   return box;
@@ -161,6 +183,12 @@ function addTag(tag) {
 }
 
 async function save() {
+  if (item?.status === "broken") {
+    // A broken sidecar has no url/title on the server yet; the repair form's
+    // own button is the only path that supplies them alongside memo/tags, so
+    // auto-save (blur, Cmd+S, tag edits) must not fire here.
+    return;
+  }
   dirty = false;
   setStatus("保存中…", "#9a9a94");
   try {

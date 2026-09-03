@@ -133,4 +133,6 @@ document.addEventListener("keydown", (event) => {
 });
 
 readHash();
-load();
+load().catch((error) => {
+  listEl.replaceChildren(el("div", { class: "empty" }, [`読み込みに失敗しました: ${error.message}`]));
+});
