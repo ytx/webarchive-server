@@ -2,6 +2,8 @@
 
 SingleFile でキャプチャしたページを Dropbox 共有フォルダに保存し、メモ・タグを付けて検索するローカルサーバ。
 
+Node.js 22.13 以上が必要(索引に `node:sqlite` を使うため)。`package.json` の `engines` にもこの制約がある。
+
 ## 起動
 
 ```bash
@@ -14,6 +16,10 @@ ARCHIVE_DIR=~/Dropbox/WebArchive MACHINE_NAME=macbook npm start
 ```json
 { "archiveDir": "/Users/me/Dropbox/WebArchive", "port": 8765, "machineName": "macbook" }
 ```
+
+`config.json` 内のパスはシェルを経由しないため `~` は展開されない。`archiveDir`/`dataDir` には
+`/Users/me/Dropbox/WebArchive` のような絶対パスを書くこと。`~` が展開されるのは
+`ARCHIVE_DIR=~/Dropbox/WebArchive` のように環境変数としてシェル側で指定した場合のみ。
 
 索引 SQLite は `~/.local/share/webarchive/index.sqlite`(`DATA_DIR` で変更可)。削除しても起動時に再構築される。
 
