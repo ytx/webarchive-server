@@ -60,3 +60,13 @@ test("tags aggregates counts", () => {
   store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2Y", tags: ["sqlite"] }));
   assert.deepEqual(store.tags(), [{ tag: "sqlite", count: 2 }, { tag: "reference", count: 1 }]);
 });
+
+test("tags sorted by recent returns most recently updated tags first, with a limit", () => {
+  const store = new Store(":memory:");
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2A", updatedAt: "2026-09-01T00:00:00+09:00", tags: ["old", "shared"] }));
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2B", updatedAt: "2026-09-03T00:00:00+09:00", tags: ["new", "shared"] }));
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2C", updatedAt: "2026-09-02T00:00:00+09:00", tags: ["mid"] }));
+  assert.deepEqual(store.tags({ sort: "recent" }).map((t) => t.tag), ["shared", "new", "mid", "old"]);
+  assert.deepEqual(store.tags({ sort: "recent", limit: 2 }).map((t) => t.tag), ["shared", "new"]);
+  assert.deepEqual(store.tags({ sort: "recent" })[0], { tag: "shared", count: 2 });
+});

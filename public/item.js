@@ -8,10 +8,13 @@ const isNew = new URLSearchParams(location.search).get("new") === "1";
 const memoEl = document.getElementById("memo");
 const tagInput = document.getElementById("tagInput");
 const tagbox = document.getElementById("tagbox");
+const quicktags = document.getElementById("quicktags");
 const saveStatus = document.getElementById("saveStatus");
 let item = null;
 let tags = [];
 let allTags = [];
+let recentTags = [];
+const RECENT_TAG_LIMIT = 10;
 let suggestIndex = 0;
 let dirty = false;
 
@@ -42,7 +45,7 @@ function safeHttpUrl(url) {
 }
 
 async function load() {
-  [item, allTags] = await Promise.all([api(`/api/items/${id}`), api("/api/tags")]);
+  [item, allTags, recentTags] = await Promise.all([api(`/api/items/${id}`), api("/api/tags"), api(`/api/tags?sort=recent&limit=${RECENT_TAG_LIMIT}`)]);
   tags = [...item.tags];
   document.title = `${item.title ?? item.id} – WebArchive`;
   document.getElementById("title").textContent = item.title ?? t("item.noTitle");
@@ -138,6 +141,19 @@ function renderTags() {
     chip.append(remove);
     tagbox.insertBefore(chip, tagInput);
   }
+  renderQuickTags();
+}
+
+// One-click buttons for the tags used most recently across the archive,
+// minus the ones already on this item.
+function renderQuickTags() {
+  quicktags.replaceChildren(...recentTags
+    .filter(({ tag }) => !tags.includes(tag))
+    .map(({ tag }) => {
+      const button = Object.assign(document.createElement("button"), { type: "button", textContent: `+ ${tag}` });
+      button.addEventListener("click", () => addTag(tag));
+      return button;
+    }));
 }
 
 function suggestions() {
@@ -198,7 +214,8 @@ async function save() {
   setStatus(t("item.saving"), "muted");
   try {
     item = await api(`/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ memo: memoEl.value, tags }) });
-    allTags = await api("/api/tags");
+    [allTags, recentTags] = await Promise.all([api("/api/tags"), api(`/api/tags?sort=recent&limit=${RECENT_TAG_LIMIT}`)]);
+    renderQuickTags();
     setStatus(t("item.savedAt", { time: (item.updatedAt ?? "").slice(11, 19) }), "ok");
   } catch (error) {
     setStatus(t("item.saveFailed", { message: error.message }), "danger");

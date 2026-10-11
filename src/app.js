@@ -184,7 +184,10 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
     return c.json(store.list({ q, tag, status, page: Number(page), limit: Number(limit) }));
   });
 
-  app.get("/api/tags", (c) => c.json(store.tags()));
+  app.get("/api/tags", (c) => {
+    const { sort = "count", limit = "0" } = c.req.query();
+    return c.json(store.tags({ sort, limit: Number(limit) }));
+  });
 
   app.get("/api/items/:id", async (c) => {
     const item = await locate(c.req.param("id"));

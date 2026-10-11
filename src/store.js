@@ -96,9 +96,15 @@ export class Store {
     return { items: rows.map((row) => this.#hydrate(row)), total, page: safePage, limit: safeLimit };
   }
 
-  tags() {
-    return this.db.prepare("SELECT tag, COUNT(*) AS count FROM item_tags GROUP BY tag ORDER BY count DESC, tag ASC").all()
-      .map((row) => ({ tag: row.tag, count: row.count }));
+  // sort "recent" orders tags by the newest updated_at among the items that
+  // carry them, so the detail screen can offer the tags the user touched last.
+  tags({ sort = "count", limit = 0 } = {}) {
+    const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : -1;
+    const sql = sort === "recent"
+      ? `SELECT item_tags.tag AS tag, COUNT(*) AS count, MAX(items.updated_at) AS last_used FROM item_tags
+         JOIN items ON items.id = item_tags.item_id GROUP BY item_tags.tag ORDER BY last_used DESC, count DESC, tag ASC LIMIT ?`
+      : "SELECT tag, COUNT(*) AS count FROM item_tags GROUP BY tag ORDER BY count DESC, tag ASC LIMIT ?";
+    return this.db.prepare(sql).all(safeLimit).map((row) => ({ tag: row.tag, count: row.count }));
   }
 
   clear() {

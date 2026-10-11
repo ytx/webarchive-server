@@ -112,6 +112,8 @@ test("list, get, patch, tags and page serving", async () => {
   assert.deepEqual(item.tags, ["research", "js"]);
   assert.ok(item.updatedAt);
   assert.deepEqual(await (await app.request("/api/tags")).json(), [{ tag: "js", count: 1 }, { tag: "research", count: 1 }]);
+  assert.deepEqual((await (await app.request("/api/tags?sort=recent&limit=1")).json()).length, 1);
+  assert.deepEqual((await (await app.request("/api/tags?sort=recent")).json()).map((t) => t.tag).sort(), ["js", "research"]);
   const page = await app.request(`/items/${id}/page`);
   assert.equal(page.status, 200);
   assert.equal(page.headers.get("content-security-policy"), "sandbox");
