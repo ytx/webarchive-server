@@ -60,6 +60,8 @@ main.list { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 aside.detail { width: 420px; display: flex; flex-direction: column; gap: 20px; padding: 24px; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; }
 aside.detail h1 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.4; }
 aside.detail .url { font-size: 12px; word-break: break-all; line-height: 1.5; }
+aside.detail .thumb-large { display: block; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--chip-none); }
+aside.detail .thumb-large img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
 aside.detail .meta { display: flex; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .08em; }

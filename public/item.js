@@ -61,10 +61,22 @@ async function load() {
   document.getElementById("openPage").href = `/items/${id}/page`;
   document.getElementById("frame").src = item.hasHtml ? `/items/${id}/page` : "about:blank";
   memoEl.value = item.memo ?? "";
+  renderThumb();
   renderTags();
   renderNotice();
   if (isNew) {
     memoEl.focus();
+  }
+}
+
+// The png is served from the archive folder, so bust the cache with the
+// item's updatedAt-independent render time to show a regenerated one at once.
+function renderThumb() {
+  const link = document.getElementById("thumbLink");
+  link.hidden = !item.hasThumb;
+  if (item.hasThumb) {
+    document.getElementById("thumb").src = `/items/${id}/thumbnail?t=${Date.now()}`;
+    link.href = `/items/${id}/page`;
   }
 }
 
@@ -271,6 +283,7 @@ document.getElementById("thumbnail").addEventListener("click", async (event) => 
       throw new Error(`${res.status} ${(await res.json().catch(() => ({}))).error ?? ""}`.trim());
     } else {
       item = await res.json();
+      renderThumb();
       setStatus(t("item.thumbnailDone"), "ok");
     }
   } catch (error) {
