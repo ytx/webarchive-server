@@ -99,6 +99,29 @@ function renderSide(tags, total, untagged, conflicts) {
   document.getElementById("summary").textContent = t("list.items", { n: total.toLocaleString() });
 }
 
+// One floating element reused for every row: hovering a thumbnail shows the
+// full-size png beside it, kept inside the viewport.
+const preview = el("div", { class: "thumb-preview", hidden: true }, [el("img", { alt: "" })]);
+document.body.append(preview);
+
+function showPreview(anchor, src) {
+  const img = preview.querySelector("img");
+  if (img.getAttribute("src") !== src) {
+    img.src = src;
+  }
+  preview.hidden = false;
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.min(640, window.innerWidth - rect.right - 32);
+  const height = width * 400 / 640;
+  preview.style.width = `${width}px`;
+  preview.style.left = `${rect.right + 12}px`;
+  preview.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - height - 8))}px`;
+}
+
+function hidePreview() {
+  preview.hidden = true;
+}
+
 function renderList({ items, total, page, limit }) {
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(total, page * limit);
@@ -126,6 +149,8 @@ function renderList({ items, total, page, limit }) {
     const thumb = el("div", { class: "thumb" });
     if (item.hasThumb) {
       thumb.append(el("img", { src: `/items/${item.id}/thumbnail`, alt: "", loading: "lazy" }));
+      thumb.addEventListener("mouseenter", () => showPreview(thumb, `/items/${item.id}/thumbnail`));
+      thumb.addEventListener("mouseleave", hidePreview);
     }
     const main = el("a", { class: "main", href: `/items/${item.id}` }, [
       thumb,
