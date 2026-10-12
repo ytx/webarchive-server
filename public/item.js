@@ -259,6 +259,26 @@ tagInput.addEventListener("keydown", (event) => {
     renderSuggest();
   }
 });
+document.getElementById("thumbnail").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  setStatus(t("item.saving"), "muted");
+  try {
+    const res = await fetch(`/api/items/${id}/thumbnail`, { method: "POST" });
+    if (res.status === 503) {
+      setStatus(t("item.thumbnailNoBrowser"), "danger");
+    } else if (!res.ok) {
+      throw new Error(`${res.status} ${(await res.json().catch(() => ({}))).error ?? ""}`.trim());
+    } else {
+      item = await res.json();
+      setStatus(t("item.thumbnailDone"), "ok");
+    }
+  } catch (error) {
+    setStatus(t("item.thumbnailFailed", { message: error.message }), "danger");
+  } finally {
+    button.disabled = false;
+  }
+});
 document.getElementById("delete").addEventListener("click", async () => {
   if (window.confirm(t("item.deleteConfirm"))) {
     await api(`/api/items/${id}`, { method: "DELETE" });

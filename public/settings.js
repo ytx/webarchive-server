@@ -6,8 +6,9 @@ initUi({ settingsLink: false });
 const form = document.getElementById("settingsForm");
 const saveStatus = document.getElementById("saveStatus");
 const notice = document.getElementById("notice");
-const FIELDS = ["archiveDir", "machineName", "port", "openAfterSave"];
-const ENV_NAMES = { archiveDir: "ARCHIVE_DIR", machineName: "MACHINE_NAME", port: "PORT", openAfterSave: "OPEN_AFTER_SAVE" };
+const FIELDS = ["archiveDir", "machineName", "port", "openAfterSave", "thumbnails", "browserPath"];
+const CHECKBOXES = new Set(["openAfterSave", "thumbnails"]);
+const ENV_NAMES = { archiveDir: "ARCHIVE_DIR", machineName: "MACHINE_NAME", port: "PORT", openAfterSave: "OPEN_AFTER_SAVE", thumbnails: "THUMBNAILS", browserPath: "BROWSER_PATH" };
 let current = null;
 
 function input(key) {
@@ -41,7 +42,7 @@ function render(settings) {
   for (const key of FIELDS) {
     const el = input(key);
     const value = settings.values[key];
-    if (key === "openAfterSave") {
+    if (CHECKBOXES.has(key)) {
       el.checked = Boolean(value);
     } else {
       el.value = value ?? "";
@@ -56,6 +57,9 @@ function render(settings) {
       (hint ?? el.closest(".field")).after(envNote);
     }
   }
+  const browserStatus = document.getElementById("browserStatus");
+  browserStatus.textContent = settings.browser ? t("settings.browserDetected", { path: settings.browser }) : t("settings.browserMissing");
+  browserStatus.classList.toggle("env", !settings.browser && settings.values.thumbnails);
 }
 
 function collect() {
@@ -65,7 +69,7 @@ function collect() {
     if (el.disabled) {
       continue;
     }
-    if (key === "openAfterSave") {
+    if (CHECKBOXES.has(key)) {
       body[key] = el.checked;
     } else if (key === "port") {
       body[key] = Number(el.value);

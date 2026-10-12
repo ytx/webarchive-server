@@ -45,6 +45,16 @@ try {
       <div class="field">
         <label class="checkbox"><input id="openAfterSave" name="openAfterSave" type="checkbox"> <span data-i18n="settings.openAfterSave"></span></label>
       </div>
+      <div class="field">
+        <label class="checkbox"><input id="thumbnails" name="thumbnails" type="checkbox"> <span data-i18n="settings.thumbnails"></span></label>
+        <div class="hint" data-hint="thumbnails" data-i18n="settings.thumbnailsHint"></div>
+      </div>
+      <div class="field">
+        <label for="browserPath" data-i18n="settings.browserPath">ブラウザの実行ファイル(browserPath)</label>
+        <input id="browserPath" name="browserPath" type="text" autocomplete="off" spellcheck="false">
+        <div class="hint" data-hint="browserPath" data-i18n="settings.browserPathHint"></div>
+        <div class="hint" id="browserStatus"></div>
+      </div>
       <div class="actions">
         <button type="submit" id="save" data-i18n="settings.save">保存</button>
         <span class="status" id="saveStatus"></span>

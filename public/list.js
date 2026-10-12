@@ -123,7 +123,12 @@ function renderList({ items, total, page, limit }) {
     const chips = el("div", { class: "chips" }, item.tags.length
       ? item.tags.map((tag) => el("span", { class: "chip" }, [tag]))
       : [el("span", { class: "chip none" }, [t("chip.none")])]);
+    const thumb = el("div", { class: "thumb" });
+    if (item.hasThumb) {
+      thumb.append(el("img", { src: `/items/${item.id}/thumbnail`, alt: "", loading: "lazy" }));
+    }
     const main = el("a", { class: "main", href: `/items/${item.id}` }, [
+      thumb,
       el("div", { style: "min-width:0; display:flex; flex-direction:column; gap:3px;" }, [title, el("div", { class: "sub" }, [subText])]),
       chips,
       el("div", { class: "date" }, [(item.savedAt ?? "").slice(0, 10)])

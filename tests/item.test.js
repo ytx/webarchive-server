@@ -22,6 +22,7 @@ test("ok item with html and json", async () => {
   const item = await readItem(ctx, "items/2026/09", ID);
   assert.equal(item.status, "ok");
   assert.equal(item.hasHtml, true);
+  assert.equal(item.hasThumb, false);
   assert.deepEqual(item.tags, ["a"]);
   assert.equal(item.memo, "m");
   assert.equal(item.relDir, "items/2026/09");
@@ -94,4 +95,13 @@ test("conflict copies mark the item conflict", async () => {
 test("nothing on disk returns null", async () => {
   const { ctx } = await setup();
   assert.equal(await readItem(ctx, "items/2026/09", ID), null);
+});
+
+test("hasThumb reflects a png next to the html; a png alone is not an item", async () => {
+  const { dir, ctx } = await setup();
+  await writeFile(join(dir, `${ID}.png`), "PNG");
+  assert.equal(await readItem(ctx, "items/2026/09", ID), null);
+  await writeFile(join(dir, `${ID}.html`), HTML);
+  await writeFile(join(dir, `${ID}.json`), JSON.stringify({ id: ID, memo: "", tags: [] }));
+  assert.equal((await readItem(ctx, "items/2026/09", ID)).hasThumb, true);
 });

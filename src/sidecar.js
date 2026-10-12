@@ -20,6 +20,9 @@ export function classifyFile(name) {
   if (name === `${id}.json`) {
     return { kind: "json", id };
   }
+  if (name === `${id}.png`) {
+    return { kind: "thumb", id };
+  }
   if (name.endsWith(".json")) {
     return { kind: "conflict", id };
   }

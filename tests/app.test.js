@@ -54,6 +54,24 @@ function fakeRuntime(config) {
   };
 }
 
+function fakeThumbnailer(archiveDir) {
+  const enqueued = [];
+  const rendered = [];
+  return {
+    enqueued,
+    rendered,
+    browser: "/fake/chrome",
+    enqueue(relDir, id) {
+      enqueued.push(id);
+    },
+    async render(relDir, id) {
+      rendered.push(id);
+      await writeFile(join(archiveDir, relDir, `${id}.png`), "PNG");
+      return true;
+    }
+  };
+}
+
 async function setup({ openAfterSave = false, openInBrowser = fakeOpenInBrowser(), configured = true, sources = {} } = {}) {
   const archiveDir = await mkdtemp(join(tmpdir(), "wa-"));
   const store = new Store(":memory:");
@@ -65,11 +83,14 @@ async function setup({ openAfterSave = false, openInBrowser = fakeOpenInBrowser(
     machineName: "mac",
     openAfterSave,
     configPath: join(archiveDir, "config.json"),
-    sources: { archiveDir: "file", dataDir: "default", port: "default", machineName: "file", openAfterSave: "default", ...sources }
+    thumbnails: true,
+    browserPath: "",
+    sources: { archiveDir: "file", dataDir: "default", port: "default", machineName: "file", openAfterSave: "default", thumbnails: "default", browserPath: "default", ...sources }
   };
   const runtime = fakeRuntime(config);
-  const app = withDefaultHost(createApp({ config, store, openInBrowser, runtime, home: "/home/me" }), "127.0.0.1:8765");
-  return { app, store, archiveDir, openInBrowser, runtime, config };
+  const thumbnailer = fakeThumbnailer(archiveDir);
+  const app = withDefaultHost(createApp({ config, store, openInBrowser, runtime, thumbnailer, home: "/home/me" }), "127.0.0.1:8765");
+  return { app, store, archiveDir, openInBrowser, runtime, config, thumbnailer };
 }
 
 async function putSettings(app, body) {
@@ -255,8 +276,9 @@ test("GET /api/settings reports values, sources and the config path", async () =
   const body = await res.json();
   assert.equal(body.configured, true);
   assert.equal(body.configPath, config.configPath);
-  assert.deepEqual(body.values, { archiveDir, port: 8765, machineName: "mac", openAfterSave: false });
-  assert.deepEqual(body.sources, { archiveDir: "file", port: "env", machineName: "file", openAfterSave: "default" });
+  assert.deepEqual(body.values, { archiveDir, port: 8765, machineName: "mac", openAfterSave: false, thumbnails: true, browserPath: "" });
+  assert.deepEqual(body.sources, { archiveDir: "file", port: "env", machineName: "file", openAfterSave: "default", thumbnails: "default", browserPath: "default" });
+  assert.equal(body.browser, "/fake/chrome");
 });
 
 test("PUT /api/settings applies valid values through the runtime", async () => {
@@ -268,6 +290,11 @@ test("PUT /api/settings applies valid values through the runtime", async () => {
   assert.equal(body.values.archiveDir, "/new/archive");
   assert.equal(body.values.machineName, "box");
   assert.deepEqual(runtime.calls, [{ archiveDir: "/new/archive", port: 9000, machineName: "box", openAfterSave: true }]);
+  const thumbs = await putSettings(app, { thumbnails: false, browserPath: " /opt/chrome " });
+  assert.equal(thumbs.status, 200);
+  assert.deepEqual(runtime.calls[1], { thumbnails: false, browserPath: "/opt/chrome" });
+  assert.equal((await putSettings(app, { thumbnails: "yes" })).status, 400);
+  assert.equal((await putSettings(app, { browserPath: 5 })).status, 400);
 });
 
 test("PUT /api/settings expands a leading ~/ in archiveDir", async () => {
@@ -359,4 +386,31 @@ test("GET /api/settings exposes the last startup/apply error", async () => {
   config.lastError = "EACCES: permission denied";
   const body = await (await app.request("/api/settings")).json();
   assert.equal(body.lastError, "EACCES: permission denied");
+});
+
+test("thumbnails: queued on upload, served when present, regenerated on demand", async () => {
+  const { app, thumbnailer } = await setup();
+  const { id } = await (await upload(app)).json();
+  assert.deepEqual(thumbnailer.enqueued, [id]);
+  assert.equal((await (await app.request(`/api/items/${id}`)).json()).hasThumb, false);
+  assert.equal((await app.request(`/items/${id}/thumbnail`)).status, 404);
+  const regen = await app.request(`/api/items/${id}/thumbnail`, { method: "POST" });
+  assert.equal(regen.status, 200);
+  assert.equal((await regen.json()).hasThumb, true);
+  assert.deepEqual(thumbnailer.rendered, [id]);
+  const png = await app.request(`/items/${id}/thumbnail`);
+  assert.equal(png.status, 200);
+  assert.equal(png.headers.get("content-type"), "image/png");
+  assert.equal(await png.text(), "PNG");
+  assert.equal((await app.request("/api/items/01J7ZK4M3N5P6Q7R8S9T0V1W2X/thumbnail", { method: "POST" })).status, 404);
+  await app.request(`/api/items/${id}`, { method: "DELETE" });
+  assert.equal((await app.request(`/items/${id}/thumbnail`)).status, 404);
+});
+
+test("POST thumbnail reports 503 when no browser is available", async () => {
+  const { app, thumbnailer } = await setup();
+  const { id } = await (await upload(app)).json();
+  thumbnailer.render = async () => false;
+  const res = await app.request(`/api/items/${id}/thumbnail`, { method: "POST" });
+  assert.equal(res.status, 503);
 });

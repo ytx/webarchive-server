@@ -24,12 +24,13 @@ export async function readItem({ archiveDir, machineName }, relDir, id, { create
   const files = names.map((name) => ({ name, ...classifyFile(name) })).filter((file) => file.id === id);
   const hasHtml = files.some((file) => file.kind === "html");
   const hasJson = files.some((file) => file.kind === "json");
+  const hasThumb = files.some((file) => file.kind === "thumb");
   const conflictFiles = files.filter((file) => file.kind === "conflict").map((file) => file.name).sort();
   if (!hasHtml && !hasJson && conflictFiles.length === 0) {
     return null;
   }
   const jsonPath = join(dir, `${id}.json`);
-  const base = { id, relDir, hasHtml, conflictFiles, url: null, title: null, memo: "", tags: [], savedAt: null, savedOn: null, updatedAt: null };
+  const base = { id, relDir, hasHtml, hasThumb, conflictFiles, url: null, title: null, memo: "", tags: [], savedAt: null, savedOn: null, updatedAt: null };
   let sidecar;
   if (hasJson) {
     try {

@@ -7,8 +7,17 @@ import { startWatcher } from "./watcher.js";
 // Owns the mutable runtime state derived from the config: the archive index
 // and the filesystem watcher. `config` is mutated in place so that consumers
 // holding a reference (the HTTP app) always see the current values.
-export function createRuntime({ config, store, saveConfig = realSaveConfig, watcherOptions = {}, onError = (error) => console.error(error) }) {
+export function createRuntime({ config, store, saveConfig = realSaveConfig, thumbnailer = null, watcherOptions = {}, onError = (error) => console.error(error) }) {
   let watcher = null;
+
+  function backfillThumbnails() {
+    if (!thumbnailer || !config.thumbnails || !config.configured) {
+      return;
+    }
+    for (const item of store.missingThumbnails(config.machineName)) {
+      thumbnailer.enqueue(item.relDir, item.id);
+    }
+  }
 
   // Bring the index and watcher up for the given archive. The directory is
   // created (and thereby checked for access) before the current watcher is
@@ -34,6 +43,7 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
       try {
         const count = await bringUp(config);
         config.lastError = null;
+        backfillThumbnails();
         return count;
       } catch (error) {
         // Stay up in the unconfigured state so the settings page can show the
@@ -46,7 +56,7 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
     },
     async apply(patch) {
       const values = {};
-      for (const key of ["archiveDir", "port", "machineName", "openAfterSave"]) {
+      for (const key of ["archiveDir", "port", "machineName", "openAfterSave", "thumbnails", "browserPath"]) {
         if (patch[key] !== undefined && config.sources[key] !== "env") {
           values[key] = patch[key];
         }
@@ -74,7 +84,7 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
       await saveConfig(config.configPath, values);
 
       const restartRequired = values.port !== undefined && values.port !== config.port;
-      for (const key of ["archiveDir", "machineName", "openAfterSave"]) {
+      for (const key of ["archiveDir", "machineName", "openAfterSave", "thumbnails", "browserPath"]) {
         if (values[key] !== undefined) {
           config[key] = values[key];
           config.sources[key] = "file";
@@ -85,6 +95,9 @@ export function createRuntime({ config, store, saveConfig = realSaveConfig, watc
       }
       config.configured = Boolean(config.archiveDir);
       config.lastError = null;
+      if (archiveChanged || values.thumbnails !== undefined || values.browserPath !== undefined) {
+        backfillThumbnails();
+      }
       return { restartRequired };
     },
     async close() {

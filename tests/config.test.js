@@ -51,7 +51,7 @@ test("loadConfig reports the source of each value", async () => {
   const file = join(dir, "config.json");
   await writeFile(file, JSON.stringify({ archiveDir: "/from/file", port: 9000 }));
   const config = loadConfig({ env: { PORT: "9100" }, configFile: file });
-  assert.deepEqual(config.sources, { archiveDir: "file", dataDir: "default", port: "env", machineName: "default", openAfterSave: "default" });
+  assert.deepEqual(config.sources, { archiveDir: "file", dataDir: "default", port: "env", machineName: "default", openAfterSave: "default", thumbnails: "default", browserPath: "default" });
 });
 
 test("saveConfig writes the file-managed values, creating the directory", async () => {
@@ -117,4 +117,20 @@ test("env OPEN_AFTER_SAVE overrides config.json openAfterSave: false", async () 
   await writeFile(file, JSON.stringify({ archiveDir: "/from/file", openAfterSave: false }));
   const config = loadConfig({ env: { OPEN_AFTER_SAVE: "true" }, configFile: file });
   assert.equal(config.openAfterSave, true);
+});
+
+test("thumbnails default on with an empty browserPath; env and file can override", async () => {
+  const none = loadConfig({ env: {}, configFile: "/nonexistent/config.json" });
+  assert.equal(none.thumbnails, true);
+  assert.equal(none.browserPath, "");
+  const env = loadConfig({ env: { THUMBNAILS: "off", BROWSER_PATH: "/opt/chrome" }, configFile: "/nonexistent/config.json" });
+  assert.equal(env.thumbnails, false);
+  assert.equal(env.browserPath, "/opt/chrome");
+  assert.equal(env.sources.browserPath, "env");
+  const dir = await mkdtemp(join(tmpdir(), "wa-"));
+  const file = join(dir, "config.json");
+  await saveConfig(file, { thumbnails: false, browserPath: "/x" });
+  const fromFile = loadConfig({ env: {}, configFile: file });
+  assert.equal(fromFile.thumbnails, false);
+  assert.equal(fromFile.browserPath, "/x");
 });

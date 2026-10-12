@@ -6,7 +6,7 @@ function item(overrides) {
   return {
     id: "01J7ZK4M3N5P6Q7R8S9T0V1W2X", url: "https://example.com/a", title: "SQLite FTS5 trigram の仕様",
     memo: "3文字未満は一致しない", savedAt: "2026-09-02T09:00:00+09:00", savedOn: "mac",
-    updatedAt: "2026-09-02T09:00:00+09:00", relDir: "items/2026/09", hasHtml: true, status: "ok",
+    updatedAt: "2026-09-02T09:00:00+09:00", relDir: "items/2026/09", hasHtml: true, hasThumb: false, status: "ok",
     tags: ["reference", "sqlite"], conflictFiles: [], ...overrides
   };
 }
@@ -69,4 +69,26 @@ test("tags sorted by recent returns most recently updated tags first, with a lim
   assert.deepEqual(store.tags({ sort: "recent" }).map((t) => t.tag), ["shared", "new", "mid", "old"]);
   assert.deepEqual(store.tags({ sort: "recent", limit: 2 }).map((t) => t.tag), ["shared", "new"]);
   assert.deepEqual(store.tags({ sort: "recent" })[0], { tag: "shared", count: 2 });
+});
+
+test("hasThumb round-trips and an older database without the column is upgraded", () => {
+  const store = new Store(":memory:");
+  store.upsert(item({ hasThumb: true }));
+  assert.equal(store.get(item().id).hasThumb, true);
+  assert.equal(store.list({}).items[0].hasThumb, true);
+  const old = new Store(":memory:");
+  old.db.exec("DROP TABLE items; CREATE TABLE items (id TEXT PRIMARY KEY, url TEXT, title TEXT, memo TEXT NOT NULL DEFAULT '', saved_at TEXT, saved_on TEXT, updated_at TEXT, rel_dir TEXT NOT NULL, has_html INTEGER NOT NULL, status TEXT NOT NULL, conflict_files TEXT NOT NULL DEFAULT '[]')");
+  old.migrate();
+  old.upsert(item({ hasThumb: true }));
+  assert.equal(old.get(item().id).hasThumb, true);
+});
+
+test("missingThumbnails lists html items without a png that were saved on the given machine", () => {
+  const store = new Store(":memory:");
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2A", savedOn: "mac" }));
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2B", savedOn: "mac", hasThumb: true }));
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2C", savedOn: "other" }));
+  store.upsert(item({ id: "01J7ZK4M3N5P6Q7R8S9T0V1W2D", savedOn: "mac", hasHtml: false, status: "pending" }));
+  assert.deepEqual(store.missingThumbnails("mac").map((i) => i.id.slice(-1)), ["A"]);
+  assert.deepEqual(store.missingThumbnails().map((i) => i.id.slice(-1)).sort(), ["A", "C"]);
 });

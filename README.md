@@ -97,6 +97,8 @@ ARCHIVE_DIR=~/Dropbox/WebArchive MACHINE_NAME=macbook webarchive
 | `PORT` | `port` | `8765` |
 | `MACHINE_NAME` | `machineName` | host name |
 | `OPEN_AFTER_SAVE` | `openAfterSave` | `true` |
+| `THUMBNAILS` | `thumbnails` | `true` |
+| `BROWSER_PATH` | `browserPath` | none (auto-detect) |
 | `WEBARCHIVE_CONFIG` | (location of the file itself) | `~/.config/webarchive/config.json` |
 
 Paths in the configuration file do not pass through a shell, so `~` is not expanded. Write absolute paths such as
@@ -134,3 +136,25 @@ It can also be set with the checkbox in the settings screen or in the configurat
 `OPEN_AFTER_SAVE` is disabled by any of `false` / `0` / `no` / `off` (case-insensitive); every other value enables it. The environment variable takes precedence over `config.json`.
 
 Disable it if SingleFile's autosave or batch saving opens too many tabs.
+
+## Thumbnails
+
+A thumbnail of each saved page (`<ULID>.png`, 640×400) is rendered next to its HTML and shown in the list. The PNG lives in the shared folder, so it syncs to other machines like everything else.
+
+Rendering uses whatever Chromium-based browser is already installed, started in headless mode. No npm dependency is added.
+
+| OS | Auto-detected browsers |
+|---|---|
+| macOS | Google Chrome, Chromium, Microsoft Edge, Brave Browser under `/Applications` |
+| Windows | Chrome, Edge, Brave, Chromium under Program Files / LocalAppData |
+| Linux | `google-chrome`, `chromium`, `chromium-browser`, `brave-browser`, `microsoft-edge` on `PATH` |
+
+If detection fails or you want a different browser, set an absolute path in the settings screen ("Browser executable", `browserPath` / `BROWSER_PATH`). Without a browser, thumbnails are simply skipped and everything else keeps working. The checkbox (`thumbnails` / `THUMBNAILS`) turns generation off entirely.
+
+Rendering runs in a throwaway profile, so running Chrome or Brave windows are not affected, and all outbound network access from the saved page is blocked.
+
+Thumbnails are rendered one at a time in the background, never delaying the save response:
+
+- right after a page is saved from SingleFile
+- at startup and after a settings change, for pages saved on this machine that have no thumbnail yet (pages saved on other machines get theirs rendered there and synced over)
+- when you press "Regenerate thumbnail" on the detail screen (works for any page)

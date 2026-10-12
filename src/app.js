@@ -13,7 +13,7 @@ import { openInBrowser as realOpenInBrowser } from "./open-in-browser.js";
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
-const SETTINGS_KEYS = ["archiveDir", "port", "machineName", "openAfterSave"];
+const SETTINGS_KEYS = ["archiveDir", "port", "machineName", "openAfterSave", "thumbnails", "browserPath"];
 
 // Validate a settings PUT body. Returns { values } or { error }.
 export function parseSettings(body, { home = homedir() } = {}) {
@@ -53,10 +53,22 @@ export function parseSettings(body, { home = homedir() } = {}) {
     }
     values.openAfterSave = body.openAfterSave;
   }
+  if (body.thumbnails !== undefined) {
+    if (typeof body.thumbnails !== "boolean") {
+      return { error: "thumbnails must be a boolean" };
+    }
+    values.thumbnails = body.thumbnails;
+  }
+  if (body.browserPath !== undefined) {
+    if (typeof body.browserPath !== "string") {
+      return { error: "browserPath must be a string (empty for auto-detect)" };
+    }
+    values.browserPath = body.browserPath.trim();
+  }
   return { values };
 }
 
-export function createApp({ config, store, openInBrowser = realOpenInBrowser, runtime, home = homedir() }) {
+export function createApp({ config, store, openInBrowser = realOpenInBrowser, runtime, thumbnailer, home = homedir() }) {
   const app = new Hono();
   // `config` is mutated in place by the runtime when settings change, so read
   // archiveDir/machineName through getters rather than copying them once.
@@ -106,7 +118,7 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
   function settingsView() {
     const values = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config[key]]));
     const sources = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config.sources[key]]));
-    return { configured: config.configured, configPath: config.configPath, values, sources, lastError: config.lastError ?? null };
+    return { configured: config.configured, configPath: config.configPath, values, sources, lastError: config.lastError ?? null, browser: thumbnailer?.browser ?? null };
   }
 
   app.get("/api/settings", (c) => c.json(settingsView()));
@@ -166,6 +178,7 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
     const html = Buffer.from(await file.arrayBuffer());
     const url = typeof body.url === "string" ? body.url : "";
     const item = await ingest(ctx, { html, url, filename: file.name });
+    thumbnailer?.enqueue(item.relDir, item.id);
     const openUrl = `http://127.0.0.1:${config.port}/items/${item.id}?new=1`;
     if (config.openAfterSave) {
       openInBrowser(openUrl)
@@ -299,6 +312,33 @@ export function createApp({ config, store, openInBrowser = realOpenInBrowser, ru
     }
     store.remove(item.id);
     return c.body(null, 204);
+  });
+
+  app.post("/api/items/:id/thumbnail", async (c) => {
+    const item = await locate(c.req.param("id"));
+    if (!item || !item.hasHtml) {
+      return c.json({ error: "not found" }, 404);
+    }
+    let ok = false;
+    try {
+      ok = Boolean(await thumbnailer?.render(item.relDir, item.id));
+    } catch (error) {
+      return c.json({ error: error.message }, 500);
+    }
+    if (!ok) {
+      return c.json({ error: "no browser available for thumbnails" }, 503);
+    }
+    const fresh = await refresh(item);
+    return fresh ? c.json(fresh) : c.json({ error: "not found" }, 404);
+  });
+
+  app.get("/items/:id/thumbnail", async (c) => {
+    const item = await locate(c.req.param("id"));
+    if (!item || !item.hasThumb) {
+      return c.text("not found", 404);
+    }
+    const png = await readFile(join(config.archiveDir, item.relDir, `${item.id}.png`));
+    return c.body(png, 200, { "Content-Type": "image/png" });
   });
 
   app.get("/items/:id/page", async (c) => {

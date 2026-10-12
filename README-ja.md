@@ -97,6 +97,8 @@ ARCHIVE_DIR=~/Dropbox/WebArchive MACHINE_NAME=macbook webarchive
 | `PORT` | `port` | `8765` |
 | `MACHINE_NAME` | `machineName` | ホスト名 |
 | `OPEN_AFTER_SAVE` | `openAfterSave` | `true` |
+| `THUMBNAILS` | `thumbnails` | `true` |
+| `BROWSER_PATH` | `browserPath` | なし(自動検出) |
 | `WEBARCHIVE_CONFIG` | (ファイル自体の場所) | `~/.config/webarchive/config.json` |
 
 設定ファイル内のパスはシェルを経由しないため `~` は展開されない。`archiveDir`/`dataDir` には
@@ -134,4 +136,26 @@ OPEN_AFTER_SAVE=false webarchive
 `OPEN_AFTER_SAVE` の値は `false` / `0` / `no` / `off`(大文字小文字は区別しない)のいずれかで無効になり、それ以外は有効として扱われる。環境変数が `config.json` より優先される。
 
 SingleFile の自動保存(autosave)やバッチ保存でタブが大量に開いてしまう場合は無効にすること。
+
+## サムネイル
+
+保存したページのサムネイル(`<ULID>.png`、640×400)を HTML と同じフォルダに生成し、一覧に表示する。PNG も共有フォルダに置かれるので、他のマシンにもそのまま同期される。
+
+生成には、インストール済みの Chromium 系ブラウザをヘッドレスモードで起動して使う。npm の依存は増えない。
+
+| OS | 自動検出の対象 |
+|---|---|
+| macOS | `/Applications` の Google Chrome、Chromium、Microsoft Edge、Brave Browser |
+| Windows | Program Files / LocalAppData 配下の Chrome、Edge、Brave、Chromium |
+| Linux | `PATH` 上の `google-chrome`、`chromium`、`chromium-browser`、`brave-browser`、`microsoft-edge` |
+
+検出できない場合や別のブラウザを使いたい場合は、設定画面の「ブラウザの実行ファイル」(`browserPath` / `BROWSER_PATH`)に絶対パスを指定する。ブラウザが見つからない環境ではサムネイルを生成しないだけで、他の機能はそのまま動く。設定画面のチェックボックス(`thumbnails` / `THUMBNAILS`)で生成自体を止められる。
+
+撮影は一時プロファイルで行い、起動中の Chrome や Brave には影響しない。保存ページ内からの外部通信はすべて遮断する。
+
+生成のタイミングは次のとおり。1 件ずつ順に処理し、保存のレスポンスは待たせない。
+
+- SingleFile から保存した直後
+- 起動時と設定変更時に、このマシンで保存したページのうちサムネイルがないもの(他のマシンで保存したページはそのマシンが生成して同期してくる)
+- 詳細画面の「サムネイルを再生成」ボタンを押したとき(どのマシンで保存したページでも可)
 

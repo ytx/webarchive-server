@@ -31,7 +31,12 @@ async function archiveWith(id) {
   return archiveDir;
 }
 
-async function setup({ env = {}, file } = {}) {
+function fakeThumbnailer() {
+  const enqueued = [];
+  return { enqueued, enqueue(relDir, id) { enqueued.push(id); } };
+}
+
+async function setup({ env = {}, file, thumbnailer } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "wa-cfg-"));
   const configFile = join(dir, "config.json");
   if (file) {
@@ -39,7 +44,7 @@ async function setup({ env = {}, file } = {}) {
   }
   const config = loadConfig({ env: { DATA_DIR: dir, ...env }, configFile });
   const store = new Store(":memory:");
-  const runtime = createRuntime({ config, store, watcherOptions: { debounceMs: 50 } });
+  const runtime = createRuntime({ config, store, thumbnailer, watcherOptions: { debounceMs: 50 } });
   return { runtime, store, config, configFile };
 }
 
@@ -189,6 +194,20 @@ test("start with an unusable archiveDir records the error and falls back to unco
     assert.ok(store.get(A));
   } finally {
     await chmod(locked, 0o755);
+    await runtime.close();
+  }
+});
+
+test("start queues thumbnails for this machine's items that have none, and apply re-queues when thumbnails are turned on", async () => {
+  const archiveDir = await archiveWith(A);
+  const thumbnailer = fakeThumbnailer();
+  const { runtime } = await setup({ file: { archiveDir, machineName: "m", thumbnails: false }, thumbnailer });
+  await runtime.start();
+  try {
+    assert.deepEqual(thumbnailer.enqueued, [], "nothing queued while thumbnails are off");
+    await runtime.apply({ thumbnails: true });
+    assert.deepEqual(thumbnailer.enqueued, [A]);
+  } finally {
     await runtime.close();
   }
 });

@@ -3,8 +3,11 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
 
-export const FILE_KEYS = ["archiveDir", "dataDir", "port", "machineName", "openAfterSave"];
-const ENV_KEYS = { archiveDir: "ARCHIVE_DIR", dataDir: "DATA_DIR", port: "PORT", machineName: "MACHINE_NAME", openAfterSave: "OPEN_AFTER_SAVE" };
+export const FILE_KEYS = ["archiveDir", "dataDir", "port", "machineName", "openAfterSave", "thumbnails", "browserPath"];
+const ENV_KEYS = {
+  archiveDir: "ARCHIVE_DIR", dataDir: "DATA_DIR", port: "PORT", machineName: "MACHINE_NAME", openAfterSave: "OPEN_AFTER_SAVE",
+  thumbnails: "THUMBNAILS", browserPath: "BROWSER_PATH"
+};
 
 export function defaultConfigPath({ env = process.env, home = homedir() } = {}) {
   const base = env.XDG_CONFIG_HOME || join(home, ".config");
@@ -43,6 +46,8 @@ export function loadConfig({ env = process.env, home = homedir(), configFile = e
   const port = parsePort(pick("port") ?? 8765);
   const machineName = pick("machineName") ?? hostname();
   const openAfterSave = parseBoolean(pick("openAfterSave") ?? true);
+  const thumbnails = parseBoolean(pick("thumbnails") ?? true);
+  const browserPath = String(pick("browserPath") ?? "");
   return {
     archiveDir: archiveDir ? resolve(archiveDir) : null,
     configured: Boolean(archiveDir),
@@ -50,6 +55,8 @@ export function loadConfig({ env = process.env, home = homedir(), configFile = e
     port,
     machineName,
     openAfterSave,
+    thumbnails,
+    browserPath,
     configPath: configFile,
     sources
   };
